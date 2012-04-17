@@ -1,0 +1,12 @@
+<<<<<<< HEAD
+# Default setting: 
+# Num of Streams: 4	Window Size: 128K
+
+
+
+1. Required Package: gcc-c++
+2. change line 20 of "Makefile to LNXLIBS64  =  /usr/lib64/libz.so -lnsl -lpthread -lrt"
+
+=======
+tanli
+>>>>>>> 7802e9e... add README
