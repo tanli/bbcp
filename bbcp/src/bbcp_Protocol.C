@@ -13,6 +13,7 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <sys/types.h>
+#include <numa.h>
 #include "bbcp_Config.h"
 #include "bbcp_Emsg.h"
 #include "bbcp_Headers.h"
@@ -57,13 +58,35 @@ extern "C"
 void *bbcp_ProtocolLS(void *pp)
 {
    bbcp_FileSpec  *fP = bbcp_Config.srcSpec;
+   char xBuff[128];
+   time_t tNow, xMsg = time(0)+bbcp_Config.Progint;
+   int numD = 0, numF = 0;
+   int Blab = (bbcp_Config.Options & bbcp_VERBOSE) || bbcp_Config.Progint;
 
 // Extend all directories with the files therein
 //
+   if (Blab) bbcp_Fmsg("Dirlist", "Indexing files to be copied...");
    while(fP)
-        {if ('d' == fP->Info.Otype) fP->ExtendFileSpec(bbcp_Config.srcSpec);
+        {if ('d' == fP->Info.Otype)
+            {numD++; fP->ExtendFileSpec(bbcp_Config.srcSpec, numF);}
          fP = fP->next;
+         if (bbcp_Config.Progint && (tNow = time(0)) >= xMsg)
+            {sprintf(xBuff, "%d file%s in %d director%s so far...",
+                     numF, (numF == 1 ? "" : "s"),
+                     numD, (numD == 1 ? "y": "ies"));
+             bbcp_Fmsg("Dirlist", "Found", xBuff);
+             xMsg = tNow+bbcp_Config.Progint;
+            }
         }
+
+// Indicate what we found if so wanted
+//
+   if (Blab)
+      {sprintf(xBuff, "%d file%s in %d director%s.",
+               numF, (numF == 1 ? "" : "s"),
+               numD, (numD == 1 ? "y": "ies"));
+       bbcp_Fmsg("Source", "Copying", xBuff);
+      }
 
 // All done
 //
@@ -219,6 +242,16 @@ int bbcp_Protocol::Process(bbcp_Node *Node)
    int rc, NoGo = 0;
    char *cp;
 
+// set up numa affinity
+//
+    if (bbcp_Config.NumaSpec_SrcMem)
+       {
+	  struct bitmask *numa_src_mem_mask = numa_parse_nodestring(bbcp_Config.NumaSpec_SrcMem);
+       if (numa_src_mem_mask == NULL)
+	  bbcp_Emsg("NUMA", -E2BIG, "parse NumaSpec_SrcMem fail", bbcp_Config.NumaSpec_SrcMem);
+       numa_set_membind(numa_src_mem_mask);
+       }
+
 // If there is a r/t lock file, make sure it exists
 //
    if ((bbcp_Config.Options & bbcp_RTCSRC) && bbcp_Config.rtLockf
@@ -228,9 +261,18 @@ int bbcp_Protocol::Process(bbcp_Node *Node)
       }
 
 // Make sure all of the source files exist at this location. If there is an
-// error, defer exiting until after connecting to prevent a hang-up.
+// error, defer exiting until after connecting to prevent a hang-up. We
+// make sure that we are not trying to copy a directory.
 //
-   while(fp) {NoGo |= fp->Stat(); fp = fp->next;}
+   while(fp)
+        {NoGo |= fp->Stat();
+         if (fp->Info.Otype == 'd' && !(bbcp_Config.Options & bbcp_RECURSE))
+            {bbcp_Fmsg("Source", fp->pathname, "is a directory.");
+             NoGo = 1; break;
+            }
+
+         fp = fp->next;
+        }
 
 // If this is a recursive list, do it in the bacground while we try to connect.
 // This avoids time-outs when large number of files are enumerated.
@@ -332,8 +374,10 @@ int bbcp_Protocol::Process_flist()
 // Simply go through the list of files and report them back to the caller
 
    while(fp) 
-      {if ((blen = fp->Encode(buff,(size_t)sizeof(buff))) < 0) return -1;
-       if (Remote->Put(buff, blen)) return -1;
+      {if (fp->Info.Otype != 'd' || *(fp->filename))
+          {if ((blen = fp->Encode(buff,(size_t)sizeof(buff))) < 0) return -1;
+           if (Remote->Put(buff, blen)) return -1;
+          }
        fp = fp->next;
       }
 
@@ -494,8 +538,19 @@ int bbcp_Protocol::Request(bbcp_Node *Node)
 {
    long long totsz=0;
    int  retc, numfiles, texists;
+   int  outDir = (bbcp_Config.Options & bbcp_OUTDIR) != 0;
    bbcp_FileSpec *fp;
    char buff[1024];
+
+// set up numa affinity
+//
+    if (bbcp_Config.NumaSpec_SnkMem)
+       {
+       struct bitmask *numa_snk_mem_mask = numa_parse_nodestring(bbcp_Config.NumaSpec_SnkMem);
+       if (numa_snk_mem_mask == NULL)
+	  bbcp_Emsg("NUMA", -E2BIG, "parse NumaSpec_SnkMem fail", bbcp_Config.NumaSpec_SnkMem);
+       numa_set_membind(numa_snk_mem_mask);
+       }
 
 // Establish all connections
 //
@@ -523,7 +578,7 @@ int bbcp_Protocol::Request(bbcp_Node *Node)
       tdir_id = bbcp_Config.snkSpec->Info.fileid;
       else {bbcp_FileInfo Tinfo;
             if (!fs_obj || (!(retc = fs_obj->Stat(tdir, &Tinfo))
-            && Tinfo.Otype != 'd')) retc = ENOTDIR;
+            && Tinfo.Otype != 'd') && outDir) retc = ENOTDIR;
             if (retc) {bbcp_Fmsg("Request","Target directory",
                                  bbcp_Config.snkSpec->pathname,"not found");
                        return Request_exit(2);
@@ -538,7 +593,7 @@ int bbcp_Protocol::Request(bbcp_Node *Node)
 
 // If we have a number files, the target had better be a directory
 //
-   if (numfiles > 1 || bbcp_Config.Options & bbcp_OUTDIR)
+   if (numfiles > 1 || outDir)
       {if (!texists)
           {bbcp_Fmsg("Request", "Target directory",
                      bbcp_Config.snkSpec->pathname, "not found.");
@@ -571,7 +626,7 @@ int bbcp_Protocol::Request(bbcp_Node *Node)
 // Get each source file
 //
    fp = bbcp_Config.srcSpec;
-   while(fp && !(retc = Request_get(fp)) && !(retc = Local->RecvFile(fp)))
+   while(fp && !(retc=Request_get(fp)) && !(retc=Local->RecvFile(fp,Remote)))
         {if (bbcp_Config.Options & bbcp_APPEND) totsz -= fp->targetsz;
          fp = fp->next;
         }
@@ -644,20 +699,22 @@ int bbcp_Protocol::Request_flist(long long &totsz)
    while((lp = Remote->GetLine()) && (noteol = strcmp(lp, "eol")))
         {fp = new bbcp_FileSpec(fs_obj, Remote->NodeName());
          if (fp->Decode(lp)) {numfiles = -1; break;}
-         if (fp->Compose(tdir_id, tdir, tdln, tfn) && (retc = fp->Xfr_Done()))
-            {delete fp; if (retc < 0) {numfiles = -1; break;}}
-            else if (fp->Info.Otype == 'd')
+
+               if (fp->Compose(tdir_id, tdir, tdln, tfn)
+               &&  (retc = fp->Xfr_Done()))
+                  {delete fp; if (retc < 0) {numfiles = -1; break;}}
+          else if (fp->Info.Otype == 'd')
                     {if (lastdp) lastdp->next = fp;
                         else bbcp_Config.srcPath = fp;
                      lastdp = fp;
                     }
-                    else if (fp->Info.Otype == 'f')
-                         {numfiles++;
-                          totsz += fp->Info.size;
-                          if (lastfp) lastfp->next = fp;
-                             else bbcp_Config.srcSpec = fp;
-                          lastfp = fp;
-                         }
+/*PIPE*/  else if (fp->Info.Otype == 'f' || fp->Info.Otype == 'p')
+                  {numfiles++;
+                   totsz += fp->Info.size;
+                   if (lastfp) lastfp->next = fp;
+                   else bbcp_Config.srcSpec = fp;
+                   lastfp = fp;
+                  }
         }
 
 // Flush the input queue if need be

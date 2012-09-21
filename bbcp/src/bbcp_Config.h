@@ -15,6 +15,8 @@
 #include "bbcp_LogFile.h"
 #include "bbcp_Stream.h"
 
+class bbcp_Args;
+
 class bbcp_Config
 {
 public:
@@ -58,6 +60,15 @@ char         *IDfn;
 char         *Logfn;
 char         *LogSpec;
 char         *RepSpec;
+char         *SynSpec;
+char         *PorSpec;
+char         *NumaSpec;
+char         *NumaSpec_SrcTCP;
+char         *NumaSpec_SrcFile;
+char         *NumaSpec_SrcMem;
+char         *NumaSpec_SnkTCP;
+char         *NumaSpec_SnkFile;
+char         *NumaSpec_SnkMem;
 bbcp_LogFile *MLog;
 char         *CopyOpts;
 int           CopyOptt;
@@ -96,6 +107,7 @@ char          csValue[16];
 char          csString[44];
 
 char          ubSpec[4];
+char          upSpec[4];
 
 bbcp_FileSpec  *srcPath;
 bbcp_FileSpec  *srcSpec;
@@ -111,6 +123,7 @@ int   Configure(const char *cfn);
 void  Display();
 void  setCS(char *buff);
 void  setRWB(int rwbsz);
+void  setNUMA(char *buff);
 int   a2sz(const char *etxt, char *item, int  &result, int  minv, int  maxv);
 int   a2tm(const char *etxt, char *item, int  &result, int  minv, int  maxv);
 int   a2ll(const char *etxt, char *item, long long &result,
@@ -140,8 +153,11 @@ void  ParseSB(char *spec);
 int   ROpts(char *Opts);
 int   ROptsErr(char *Opts);
 char *Rtoken(void);
+void  setOpts(bbcp_Args &Args);
+int   setPorts(char *pspec);
 char *tohex(char *inbuff, int inlen, char *outbuff);
 int   Unbuff(char *Opts);
+int   Unpipe(char *Opts);
 };
 
 /******************************************************************************/
@@ -152,14 +168,17 @@ int   Unbuff(char *Opts);
 #define bbcp_COMPRESS 0x0000000000000002LL
 #define bbcp_NOUNLINK 0x0000000000000004LL
 #define bbcp_FORCE    0x0000000000000008LL
+
 #define bbcp_KEEP     0x0000000000000010LL
 #define bbcp_PCOPY    0x0000000000000020LL
 #define bbcp_VERBOSE  0x0000000000000040LL
 #define bbcp_TRACE    0x0000000000000080LL
+
 #define bbcp_OUTDIR   0x0000000000000100LL
 #define bbcp_CON2SRC  0x0000000000000200LL
 #define bbcp_BLAB     0x0000000000000400LL
 #define bbcp_ORDER    0x0000000000000800LL
+
 #define bbcp_RECURSE  0x0000000000001000LL
 #define bbcp_IDIO     0x0000000000002000LL
 #define bbcp_ODIO     0x0000000000004000LL
@@ -180,6 +199,7 @@ int   Unbuff(char *Opts);
 #define bbcp_LOGOUT   0x0000000002000000LL
 #define bbcp_LOGRD    0x0000000004000000LL
 #define bbcp_LOGWR    0x0000000008000000LL
+
 #define bbcp_LOGCMP   0x0000000010000000LL
 #define bbcp_LOGEXP   0x0000000020000000LL
 #define bbcp_LOGGING  0x000000003f000000LL
@@ -189,7 +209,20 @@ int   Unbuff(char *Opts);
 #define bbcp_RTCSNK   0x0000000200000000LL
 #define bbcp_RTCBLOK  0x0000000400000000LL
 #define bbcp_RTCHIDE  0x0000000800000000LL
+
 #define bbcp_RTCVERC  0x0000001000000000LL
+#define bbcp_OMIT     0x0000002000000000LL
+#define bbcp_IPIPE    0x0000004000000000LL
+#define bbcp_OPIPE    0x0000008000000000LL
+
+#define bbcp_XPIPE    0x000000c000000000LL
+
+#define bbcp_NOFSZCHK 0x0000010000000000LL
+
+#define bbcp_FSYNC    0x0000020000000000LL
+#define bbcp_DSYNC    0x0000060000000000LL
+
+#define bbcp_NUMA     0x0000100000000000LL
 
 #define BBCP_MAXSTREAMS 64
 #define BBCP_MINPMONSEC  1

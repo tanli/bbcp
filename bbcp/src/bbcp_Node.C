@@ -8,10 +8,12 @@
 /*   Produced by Andrew Hanushevsky for Stanford University under contract    */
 /*              DE-AC03-76-SFO0515 with the Department of Energy              */
 /******************************************************************************/
-#include <stdio.h>
+
 #include <errno.h>
+#include <stdio.h>
 #include <unistd.h>
 #include <sys/types.h>
+#include <numa.h>
 #include "bbcp_Config.h"
 #include "bbcp_Emsg.h"
 #include "bbcp_Node.h"
@@ -20,6 +22,7 @@
 #include "bbcp_Network.h"
 #include "bbcp_ProgMon.h"
 #include "bbcp_Protocol.h"
+#include "bbcp_Pthread.h"
 #include "bbcp_System.h"
 #include "bbcp_ZCX.h"
   
@@ -51,18 +54,48 @@ void *bbcp_doCX(void *pp)
 }
 void *bbcp_doWrite(void *pp)
 {
+// set up numa affinity
+//
+    if (bbcp_Config.NumaSpec_SnkFile)
+       {
+       struct bitmask *numa_snk_file_mask = numa_parse_nodestring(bbcp_Config.NumaSpec_SnkFile);
+       if (numa_snk_file_mask == NULL)
+          bbcp_Emsg("NUMA", -E2BIG, "parse NumaSpec_SnkFile fail", bbcp_Config.NumaSpec_SnkFile);
+       numa_run_on_node_mask(numa_snk_file_mask);
+       }
+
      bbcp_File *fp = (bbcp_File *)pp;
      long retc = fp->Write_All(bbcp_BPool, bbcp_Config.Streams);
      return (void *)retc;
 }
 void *bbcp_Buff2Net(void *link)
 {
+// set up numa affinity
+//
+    if (bbcp_Config.NumaSpec_SrcTCP)
+       {
+       struct bitmask *numa_src_tcp_mask = numa_parse_nodestring(bbcp_Config.NumaSpec_SrcTCP);
+       if (numa_src_tcp_mask == NULL)
+          bbcp_Emsg("NUMA", -E2BIG, "parse NumaSpec_SrcTCP fail", bbcp_Config.NumaSpec_SrcTCP);
+       numa_run_on_node_mask(numa_src_tcp_mask);
+       }
+
      bbcp_Link *netlink = (bbcp_Link *)link;
      long retc = netlink->Buff2Net();
      return (void *)retc;
 }
 void *bbcp_Net2Buff(void *link)
 {
+// set up numa affinity
+//
+    if (bbcp_Config.NumaSpec_SnkTCP)
+      {
+      struct bitmask *numa_snk_tcp_mask = numa_parse_nodestring(bbcp_Config.NumaSpec_SnkTCP);
+      if (numa_snk_tcp_mask == NULL)
+         bbcp_Emsg("NUMA", -E2BIG, "parse NumaSpec_SnkTCP fail", bbcp_Config.NumaSpec_SnkTCP);
+      numa_run_on_node_mask(numa_snk_tcp_mask);
+      }
+
      bbcp_Link *netlink = (bbcp_Link *)link;
      long retc = netlink->Net2Buff();
      return (void *)retc;
@@ -135,6 +168,8 @@ char *bbcp_Node::GetLine()
 
 int bbcp_Node::Put(char *data[], int dlen[])
 {
+   static bbcp_Mutex putMutex;
+
    if (DEBUGON)
       {int i= 0;
        cerr <<"bbcp_" <<bbcp_Debug.Who <<": Sending to " <<nodename <<": ";
@@ -142,7 +177,14 @@ int bbcp_Node::Put(char *data[], int dlen[])
                         else i++;
        cerr <<endl;
       }
-    return NStream.Put(data, dlen);
+
+   if (bbcp_Config.Options & bbcp_SRC) return NStream.Put(data, dlen);
+      else {int rc;
+            putMutex.Lock();
+            rc = NStream.Put(data, dlen);
+            putMutex.UnLock();
+            return rc;
+           }
 }
 
 /******************************************************************************/
@@ -272,10 +314,11 @@ int bbcp_Node::Wait(bbcp_Node *other)
 /*                              R e c v F i l e                               */
 /******************************************************************************/
 
-int bbcp_Node::RecvFile(bbcp_FileSpec *fp)
+int bbcp_Node::RecvFile(bbcp_FileSpec *fp, bbcp_Node *Remote)
 {
    static const int wOnly = S_IWUSR;
 
+   const char *Args = 0, *Act = "opening", *Path = fp->targpath;
    long tretc = 0;
    int i, oflag, retc, Mode = wOnly, progtid = 0;
    long long startoff = 0;
@@ -289,9 +332,22 @@ int bbcp_Node::RecvFile(bbcp_FileSpec *fp)
 
 // Perform Force or Append processing
 //
-        if (bbcp_Config.Options & bbcp_FORCE)
+        if (bbcp_Config.Options & bbcp_XPIPE)
+           {oflag = O_WRONLY;
+            Path = bbcp_Config.snkSpec->pathname;
+            Args = bbcp_Config.snkSpec->fileargs;
+            if (bbcp_Config.snkSpec->Info.Otype != 'p') Act = "running";
+               else {Mode |= S_IFIFO;
+                     if (Args)
+                        {bbcp_Fmsg("RecvFile",
+                                   "Spaces disallowed in named output pipe",Path);
+                         return -EINVAL;
+                        }
+                    }
+           }
+   else if (bbcp_Config.Options & bbcp_FORCE)
            {if (!(bbcp_Config.Options & bbcp_NOUNLINK))
-               fp->FSys()->RM(fp->targpath);
+               fp->FSys()->RM(Path);
             oflag = O_WRONLY | O_CREAT | O_TRUNC;
            }
    else if (bbcp_Config.Options & bbcp_APPEND)
@@ -303,8 +359,8 @@ int bbcp_Node::RecvFile(bbcp_FileSpec *fp)
 
 // Establish mode, we normally make the file write-only
 //
-   if ( bbcp_Config.Options & bbcp_RTCSNK
-   && !(bbcp_Config.Options & bbcp_RTCHIDE))
+   if ( bbcp_Config.Options &  bbcp_RTCSNK
+   && !(bbcp_Config.Options & (bbcp_RTCHIDE|bbcp_XPIPE)))
       Mode = bbcp_Config.Mode|S_IWUSR|S_ISUID;
 
 // Tell the user what we are bout to do
@@ -313,18 +369,18 @@ int bbcp_Node::RecvFile(bbcp_FileSpec *fp)
       if (bbcp_Config.Options & bbcp_APPEND) 
          {char buff[32];
           sprintf(buff, "%lld", startoff);
-          bbcp_Fmsg("RecvFile","Appending to",fp->targpath,"at offset",buff);
+          bbcp_Fmsg("RecvFile","Appending to",Path,"at offset",buff);
          }
-         else bbcp_Fmsg("RecvFile", "Creating", fp->targpath);
-      else DEBUG("Receiving " <<fp->pathname <<" as " <<fp->targpath <<" offset=" <<startoff);
+         else bbcp_Fmsg("RecvFile", "Creating", Path);
+      else DEBUG("Receiving " <<fp->pathname <<" as " <<Path <<" offset=" <<startoff);
 
 // Receive the file in a sub-process so that we don't muck with this one
 //
    if ((Child[0] = bbcp_OS.Fork()) < 0)
-      return bbcp_Emsg("RecvFile", errno, "forking to create", fp->targpath);
+      return bbcp_Emsg("RecvFile", errno, "forking to create", Path);
    if (Child[0]) 
       {char buff[128];
-       Parent_Monitor.Start();
+       Parent_Monitor.Start(0,Remote);
        DEBUG("Waiting for child " <<Child[0] <<" to finish");
        retc = bbcp_OS.Waitpid(Child);
        Parent_Monitor.Stop();
@@ -349,10 +405,10 @@ int bbcp_Node::RecvFile(bbcp_FileSpec *fp)
 // Open the file and set the starting offset
 //
    Elapsed_Timer.Start();
-   if (!(outFile = fp->FSys()->Open(fp->targpath, oflag, Mode)))
-      return bbcp_Emsg("RecvFile", errno, "opening", fp->targpath);
+   if (!(outFile = fp->FSys()->Open(Path, oflag, Mode, Args)))
+      return bbcp_Emsg("RecvFile", errno, Act, Path);
    if (startoff && ((retc = outFile->Seek(startoff)) < 0))
-      return bbcp_Emsg("RecvFile",retc,"setting write offset for",fp->targpath);
+      return bbcp_Emsg("RecvFile",retc,"setting write offset for",Path);
    outFile->setSize(fp->Info.size);
 
 // If compression is wanted, set up the compression objects
@@ -365,7 +421,7 @@ int bbcp_Node::RecvFile(bbcp_FileSpec *fp)
    for (i = 0; i < dlcount; i++)
        {if ((retc = bbcp_Thread_Start(bbcp_Net2Buff, 
                                 (void *)data_link[i], &tid))<0)
-           {bbcp_Emsg("RecvFile",retc,"starting net thread for",fp->targpath);
+           {bbcp_Emsg("RecvFile",retc,"starting net thread for",Path);
             _exit(100);
            }
         link_tid[i] = tid;
@@ -375,9 +431,9 @@ int bbcp_Node::RecvFile(bbcp_FileSpec *fp)
 // If we are compressing start the sequence thread now
 //
    if (bbcp_Config.Options & bbcp_COMPRESS)
-      {seqFile = new bbcp_File(fp->targpath, 0, 0);
+      {seqFile = new bbcp_File(Path, 0, 0);
        if ((retc = bbcp_Thread_Start(bbcp_doWrite, (void *)seqFile, &tid))<0)
-          {bbcp_Emsg("RecvFile",retc,"starting disk thread for",fp->targpath);
+          {bbcp_Emsg("RecvFile",retc,"starting disk thread for",Path);
            _exit(100);
           }
        link_tid[dlcount++] = tid;
@@ -425,23 +481,21 @@ int bbcp_Node::RecvFile(bbcp_FileSpec *fp)
 
 // Make sure that all of the bytes were transfered
 //
-   outFile->Close();
-   if (!retc && strncmp(fp->targpath, "/dev/null/", 10))
+   if (!retc && strncmp(Path, "/dev/null/", 10))
       {bbcp_FileInfo Info;
-       if ((retc = fp->FSys()->Stat(fp->targpath, &Info)) < 0)
+       if ((retc = fp->FSys()->Stat(Path, &Info)) < 0)
           {retc = -retc;
-           bbcp_Emsg("RecvFile", retc, "finding", fp->targpath);
+           bbcp_Emsg("RecvFile", retc, "finding", Path);
           }
           else if (Info.size != fp->Info.size && Info.mode
-               &&  !(bbcp_Config.Options & bbcp_RTCSNK))
+               &&  !(bbcp_Config.Options & bbcp_NOFSZCHK))
                   {const char *What = (Info.size < fp->Info.size
                                     ?  "Not all" : "Too much");
                    retc = 29;
-                   bbcp_Fmsg("RecvFile", What, "data was transfered for",
-                             fp->targpath);
+                   bbcp_Fmsg("RecvFile",What,"data was transfered for",Path);
                    DEBUG("src size=" <<fp->Info.size <<" snk size=" <<Info.size);
                   }
-      } DEBUG("Outfile " <<fp->targpath <<" closed");
+      } DEBUG("Outfile " <<Path <<" closed");
 
 // Report detailed I/O stats, if so wanted
 //
@@ -471,16 +525,24 @@ int bbcp_Node::RecvFile(bbcp_FileSpec *fp)
 
 int bbcp_Node::SendFile(bbcp_FileSpec *fp)
 {
-   int i, retc, tretc = 0, oflag = O_RDONLY;
+   const char *Act = "opening";
+   int i, retc, tretc = 0, Mode = 0;
    pid_t Child[2] = {0,0};
    bbcp_File *inFile;
    bbcp_ProcMon *TLimit = 0;
    bbcp_ZCX *cxp;
    pthread_t tid, link_tid[BBCP_MAXSTREAMS+1];
 
+// Set open options (check for pipes)
+//
+   if (bbcp_Config.Options & bbcp_XPIPE)
+      {if (fp->Info.Otype == 'p') Mode = S_IFIFO;
+          else Act = "running";
+      }
+
 // Send the file in a sub-process so that we don't muck with this one
 //
-   DEBUG("Sending file " <<fp->pathname <<"; offset=" <<fp->targetsz);
+   DEBUG("Sending file " <<fp->targpath <<"; offset=" <<fp->targetsz);
    if ((Child[0] = bbcp_OS.Fork()) < 0)
       return bbcp_Emsg("SendFile", errno, "forking to send", fp->pathname);
    if (Child[0])
@@ -508,8 +570,8 @@ int bbcp_Node::SendFile(bbcp_FileSpec *fp)
 
 // Open the input file and set starting offset
 //
-   if (!(inFile = fp->FSys()->Open(fp->pathname, oflag)))
-      {bbcp_Emsg("SendFile", errno, "opening", fp->pathname);
+   if (!(inFile = fp->FSys()->Open(fp->pathname,O_RDONLY,Mode,fp->fileargs)))
+      {bbcp_Emsg("SendFile", errno, Act, fp->pathname);
        exit(2);
       }
    if (fp->targetsz && ((retc = inFile->Seek(fp->targetsz)) < 0))
@@ -529,7 +591,7 @@ int bbcp_Node::SendFile(bbcp_FileSpec *fp)
             _exit(100);
            }
         link_tid[i] = tid;
-        if (i >= iocount) {DEBUG("Thread " <<retc <<" assigned to data clocker");}
+        if (i >= iocount) {DEBUG("Thread " <<tid <<" assigned to data clocker");}
            else {DEBUG("Thread " <<tid <<" assigned to stream " <<i);}
        }
 
@@ -543,6 +605,17 @@ int bbcp_Node::SendFile(bbcp_FileSpec *fp)
       {TLimit = new bbcp_ProcMon();
        TLimit->Start(bbcp_Config.TimeLimit, &bbcp_BPool);
       }
+
+// set up numa affinity
+//
+    if (bbcp_Config.NumaSpec_SrcFile)
+       {
+       struct bitmask *numa_src_file_mask = numa_parse_nodestring(bbcp_Config.NumaSpec_SrcFile);
+       if (numa_src_file_mask == NULL)
+          bbcp_Emsg("NUMA", -E2BIG, "parse NumaSpec_SrcFile fail", bbcp_Config.NumaSpec_SrcFile);
+       numa_run_on_node_mask(numa_src_file_mask);
+       }
+
 
 // Read the whole file
 //
@@ -558,14 +631,12 @@ int bbcp_Node::SendFile(bbcp_FileSpec *fp)
        delete cxp;
       }
 
-// Make sure each link thread has terminated normally
+// Make sure each link thread has terminated normally.
 //
-   if (bbcp_Config.Xrate) bbcp_Thread_Detach(link_tid[dlcount--]);
-   for (i = 0; i < dlcount; i++)
+   for (i = 0; i < iocount; i++)
        {if (tretc = (long)bbcp_Thread_Wait(link_tid[i])) retc = 128;
         DEBUG("Thread " <<link_tid[i] <<" stream " <<i <<" ended; rc=" <<tretc);
        }
-   if (bbcp_Config.Xrate) bbcp_Thread_Cancel(link_tid[dlcount+1]);
 
 // All done
 //
@@ -646,20 +717,13 @@ int bbcp_Node::Incomming(bbcp_Protocol *protocol)
    if (dlcount < bbcp_Config.Streams) return Recover("Accept");
    iocount = dlcount;
 
-// If we are clocking out data, insert a special clocking link
-//
-   if (bbcp_Config.Xrate && (bbcp_Config.Options & bbcp_SRC))
-      {link = new bbcp_Link();
-       link->LinkNum = -1;
-       data_link[dlcount++] = link;
-      }
-
 // Initialize the buddy pipeline; a patented way of ensuring maximum parallelism
 //
-   if (dlcount > 1 && (bbcp_Config.Options & bbcp_SRC))
+   if (dlcount > 1 && (bbcp_Config.Options & (bbcp_SRC|bbcp_ORDER)))
       {i = dlcount-1;
        data_link[i]->setBuddy(data_link[0]);
        while(i--) data_link[i]->setBuddy(data_link[i+1]);
+       bbcp_Link::setNudge();
       }
 
 // Determine what the actual window size is (only if verbose)
@@ -715,20 +779,13 @@ int bbcp_Node::Outgoing(bbcp_Protocol *protocol)
 //
    if (bbcp_Config.Options & bbcp_BLAB) chkWsz(data_link[0]->FD());
 
-// If we are clocking out data, insert a special clocking link
-//
-   if (bbcp_Config.Xrate && (bbcp_Config.Options & bbcp_SRC))
-      {link = new bbcp_Link();
-       link->LinkNum = -1;
-       data_link[dlcount++] = link;
-      }
-
 // Initialize the buddy pipeline; a patented way of ensuring maximum parallelism
 //
-   if (dlcount > 1 && (bbcp_Config.Options & bbcp_SRC))
+   if (dlcount > 1 && (bbcp_Config.Options & (bbcp_SRC|bbcp_ORDER)))
       {i = dlcount-1;
        data_link[i]->setBuddy(data_link[0]);
        while(i--) data_link[i]->setBuddy(data_link[i+1]);
+       bbcp_Link::setNudge();
       }
    return 0;
 }
@@ -771,7 +828,7 @@ int n;
 
 // Print the summary
 //
-   xrate = ((double)xbytes)/ttime; xType = bbcp_Config::Scale(xrate);
+   xrate = ((double)xbytes)/ttime*1000.0; xType = bbcp_Config::Scale(xrate);
    n = sprintf(Line, "File %s created; %lld bytes at %.1f %sB/s%s\n",
                fp->targpath, xbytes, xrate, xType, buff);
    write(STDERR_FILENO, Line, n);

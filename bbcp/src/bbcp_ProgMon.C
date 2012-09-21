@@ -47,18 +47,18 @@ void bbcp_ProgMon::Monitor()
 {
    unsigned int  elptime, lasttime, intvtime;
    long long     cxbytes = 0, curbytes, lastbytes = 0;
-   int           pdone;
    float         cratio;
    double        xfrtime, xfrtnow;
    bbcp_Timer    etime;
-   char          buff[200], tbuff[24], cxinfo[40], *cxip;
+   char          buff[200], pbuff[24], tbuff[24], cxinfo[40], *cxip;
    const char    *xtXB, *xaXB;
    int           bewordy = bbcp_Config.Options & bbcp_VERBOSE;
 
-// Determine whether we need to report compression ratio
+// Determine whether we need to report compression ratio (assume no percentages)
 //
    if (CXp) cxip = cxinfo;
       else cxip = (char *)"";
+   strcpy(pbuff, "not");
 
 // Run a loop until we are killed, reporting what we see
 //
@@ -67,18 +67,20 @@ void bbcp_ProgMon::Monitor()
       {etime.Stop(); etime.Report(elptime);
 
        curbytes = FSp->Stats();
-       pdone = curbytes*100/Tbytes;
-       xfrtime = curbytes/(((double)elptime)/1000.0);
+       if (Tbytes) sprintf(pbuff,"%d%%",static_cast<int>(curbytes*100/Tbytes));
+       xfrtime =  static_cast<double>(curbytes)
+               / (static_cast<double>(elptime) / 1000.0);
 
        if (CXp)
           {if (!(cxbytes = CXp->Bytes())) cratio = 0.0;
-              else cratio = ((float)(curbytes*10/cxbytes))/10.0;
+              else cratio = static_cast<float>(curbytes*10/cxbytes) / 10.0;
            sprintf(cxinfo, " compressed %.1f", cratio);
           }
 
        if (bewordy)
           {intvtime = elptime - lasttime;
-           xfrtnow = (curbytes-lastbytes)/(((double)intvtime)/1000.0);
+           xfrtnow =  static_cast<double>(curbytes-lastbytes)
+                   / (static_cast<double>(intvtime) / 1000.0);
            xaXB = bbcp_Config::Scale(xfrtnow);
           }
        lastbytes = curbytes;
@@ -88,12 +90,12 @@ void bbcp_ProgMon::Monitor()
        if (bbcp_Config.Logfn) *tbuff = 0;
           else etime.Format(tbuff);
        if (bewordy)
-          sprintf(buff, "bbcp: %s %d%% done; %f %sB/s, "
-                        "avg %f %sB/s%s\n",
-                        tbuff,  pdone, xfrtnow, xtXB, xfrtime, xaXB, cxip);
+          sprintf(buff, "bbcp: %s %s done; %.1f %sB/s, "
+                        "avg %.1f %sB/s%s\n",
+                        tbuff,  pbuff, xfrtnow, xtXB, xfrtime, xaXB, cxip);
           else
-          sprintf(buff, "bbcp: %s %d%% done; %f %sB/s%s\n",
-                         tbuff,  pdone, xfrtime, xtXB, cxip);
+          sprintf(buff, "bbcp: %s %s done; %.1f %sB/s%s\n",
+                         tbuff,  pbuff, xfrtime, xtXB, cxip);
        cerr <<buff <<flush;
       }
 

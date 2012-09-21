@@ -38,6 +38,13 @@
        bbcp_Network bbcp_Net;
 
 /******************************************************************************/
+/*                        S t a t i c   O b j e c t s                         */
+/******************************************************************************/
+  
+int    bbcp_Network::pFirst = 0;
+int    bbcp_Network::pLast  = 0;
+
+/******************************************************************************/
 /*                           C o n s t r u c t o r                            */
 /******************************************************************************/
   
@@ -291,6 +298,10 @@ bbcp_Link *bbcp_Network::Connect(char *host, int port, int retries, int rwait)
        return (bbcp_Link *)0;
       }
 
+// Some debugging
+//
+   DEBUG("Connected to: " <<hName <<':' <<port);
+
 // Return the link
 //
    free(hName);
@@ -308,6 +319,14 @@ void bbcp_Network::findPort(int &minport, int &maxport)
    static const char *MaxPort = "bbcplast";
    struct servent sent, *sp;
    char sbuff[1024];
+
+// Use command line ports if present
+//
+   if (pFirst)
+      {minport = pFirst;
+       maxport = pLast;
+       return;
+      }
 
 // Try to find minimum port number
 //
@@ -442,6 +461,20 @@ int bbcp_Network::QoS(int newQoS)
 }
 
 /******************************************************************************/
+/*                              s e t P o r t s                               */
+/******************************************************************************/
+
+int bbcp_Network::setPorts(int pnum1, int pnum2)
+{
+
+   if (pnum1 < 1 || pnum1 > 65535 || pnum2 < 1 || pnum2 > 65535
+   ||  pnum1 > pnum2) return 0;
+   pFirst = pnum1;
+   pLast  = pnum2;
+   return 1;
+}
+  
+/******************************************************************************/
 /*                             s e t W i n d o w                              */
 /******************************************************************************/
 
@@ -507,7 +540,7 @@ char *bbcp_Network::getHostName(struct sockaddr_in &addr)
 // Convert it to a host name
 //
    if (GETHOSTBYADDR((const char *)&addr.sin_addr, sizeof(addr.sin_addr),
-                     AF_INET, &hent, hbuff, sizeof(hbuff), hp, &rc))
+                     AF_INET, &hent, hbuff, sizeof(hbuff), hp, &rc) && hp)
              hname = strdup(hp->h_name);
         else hname = strdup(inet_ntoa(addr.sin_addr));
 
@@ -584,10 +617,13 @@ void bbcp_Network::setOpts(const char *who, int xfd)
 //
    if DEBUGON
       {int xsz;
-       socklen_t szx = (socklen_t)sizeof(xsz);
+       socklen_t szseg = (socklen_t)sizeof(maxSegment);
+       socklen_t szx   = (socklen_t)sizeof(xsz);
+       if (getsockopt(xfd, IPPROTO_TCP, TCP_MAXSEG, (gsval_t)&maxSegment, &szseg))
+       bbcp_Emsg("MaxWSize", errno, "getting TCP maxseg.");
        if (getsockopt(xfd, SOL_SOCKET, WinSOP, &xsz, &szx)) xsz = -errno;
        DEBUG(who <<(Sender ? " send" : " recv") <<" window set to " <<wbsz
-                 <<" (actual=" <<xsz <<")");
+                 <<" (actual=" <<xsz <<" segsz=" <<maxSegment <<")");
       }
 }
   

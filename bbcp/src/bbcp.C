@@ -43,6 +43,7 @@
 /******************************************************************************/
 
 #define Same(s1, s2) (s1 == s2 || (s1 && s2 && !strcmp(s1, s2)))
+
 /******************************************************************************/
 /*                      G l o b a l   V a r i a b l e s                       */
 /******************************************************************************/
@@ -68,17 +69,12 @@ main(int argc, char *argv[], char *envp[])
    double     xRate;
    bbcp_Timer Elapsed_Timer;
    const char *xType;
-   int flag;
 
 // Process configuration file
 //
    bbcp_OS.EnvP = envp;
    if (bbcp_Config.ConfigInit(argc, argv)) exit(1);
 
- flag=bbcp_Config.Options;
- cerr<<"Option now is "<< flag<< endl<<flush;
- //cout<< "Option now is " << endl<<flush;   
-//printf("Option now is %o\n", (bbcp_Config.Options & (bbcp_SRC)));
 // Process the arguments
 //
    bbcp_Config.Arguments(argc, argv);
@@ -108,8 +104,6 @@ main(int argc, char *argv[], char *envp[])
    Sink   = new bbcp_Node;
    tfs    = bbcp_Config.snkSpec;
 
-//   flag=(bbcp_Config.Options & (bbcp_SRC));
-   cerr<<"Option now is "<< flag<< endl<<flush;
 // Allocate the log file
 //
    if (bbcp_Config.Logfn)
@@ -150,6 +144,7 @@ main(int argc, char *argv[], char *envp[])
 //
    delete Source;
    delete Sink;
+
 // Report final statistics if wanted
 //
    DEBUG("Ending; rc=" <<retc <<" files=" <<TotFiles <<" bytes=" <<TotBytes);
@@ -159,7 +154,7 @@ main(int argc, char *argv[], char *envp[])
        char buff[128];
        Elapsed_Timer.Stop();
        Elapsed_Timer.Report(ttime);
-       xRate = ((double)TotBytes)/ttime; xType = bbcp_Config::Scale(xRate);
+       xRate = ((double)TotBytes)/ttime*1000.0; xType = bbcp_Config::Scale(xRate);
        sprintf(buff, "%.1f %sB/s", xRate, xType);
        cerr <<TotFiles <<(TotFiles != 1 ? " files" : " file");
        cerr <<" copied at effectively " <<buff <<endl;

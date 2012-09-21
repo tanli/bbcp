@@ -4,7 +4,7 @@
  
 
 static const char rcsid[] =
-    "@(#) $Id: NetLogger.i,v 1.1.1.1 2010/07/30 01:34:51 abh Exp $";
+    "@(#) $Id$";
 
  
  

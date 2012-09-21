@@ -14,15 +14,15 @@ ENVINCLUDE = -I. -I/usr/local/include -I/usr/include
 
 AIXLIBS    =  -q64 -L/usr/lib -lz -lpthreads
 
-BSDLIBS    =  /usr/lib/libz.a -lc_r -pthread
+BSDLIBS    =  -L/usr/lib -lz -pthread
 
-LNXLIBS32  =  /usr/lib/libz.a   -lnsl -lpthread -lrt
-LNXLIBS64  =  /usr/lib64/libz.so -lnsl -lpthread -lrt
+LNXLIBS32  =  -lnsl -lpthread -lrt -lz
+LNXLIBS64  =  -lnsl -lpthread -lrt -lz -lnuma
 
 MACLIBS    =  -dynamic -L/usr/lib -lz                       -lpthread
 
-SUNLIBS    =  /usr/local/lib/libz.a -lposix4 -lsocket -lnsl -lpthread
-SUNLIBSO   =  -L/usr/lib -lz -lposix4 -lsocket -lnsl -lpthread
+SUNLIBSA   =  /usr/local/lib/libz.a -lposix4 -lsocket -lnsl -lpthread
+SUNLIBS    =  -L/usr/lib -lz -lposix4 -lsocket -lnsl -lpthread
 
 MKPARMS  = doitall
 
@@ -30,8 +30,7 @@ NLGR       = -DNL_THREADSAFE
 
 SUN64      = -D_LARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64
 SUNMT      = -D_REENTRANT -DOO_STD -mt
-SUNOPT     = -O2 -fsimple -fast
-SUNOPT     = -g  -fsimple $(SUNMT) $(SUN64) $(NLGR) -DSUN
+SUNOPT     = -g -fast $(SUNMT) $(SUN64) $(NLGR) -DSUN
 
 SUNCC      = CC
 SUNcc      = cc
@@ -85,9 +84,11 @@ SOURCE =      \
      bbcp_FileSpec.C \
      bbcp_FileSystem.C \
      bbcp_FS_Null.C \
+     bbcp_FS_Pipe.C \
      bbcp_FS_Unix.C \
      bbcp_IO.C \
      bbcp_IO_Null.C \
+     bbcp_IO_Pipe.C \
      bbcp_Link.C \
      bbcp_LogFile.C \
      bbcp_MD5.C \
@@ -118,9 +119,11 @@ OBJECT =      \
      $(OBJDIR)/bbcp_FileSpec.o \
      $(OBJDIR)/bbcp_FileSystem.o \
      $(OBJDIR)/bbcp_FS_Null.o \
+     $(OBJDIR)/bbcp_FS_Pipe.o \
      $(OBJDIR)/bbcp_FS_Unix.o \
      $(OBJDIR)/bbcp_IO.o \
      $(OBJDIR)/bbcp_IO_Null.o \
+     $(OBJDIR)/bbcp_IO_Pipe.o \
      $(OBJDIR)/bbcp_Link.o \
      $(OBJDIR)/bbcp_LogFile.o \
      $(OBJDIR)/bbcp_MD5.o \
@@ -231,7 +234,7 @@ SunX86:
 	BB=$(S86cc) \
 	CFLAGS="$(ENVCFLAGS) $(S86OPT) $(OPT)" \
 	INCLUDE="$(ENVINCLUDE)" \
-	LIBS="$(SUNLIBSO)"
+	LIBS="$(SUNLIBS)"
 
 Sungcc:
 	@make $(MKPARMS)  \
@@ -239,7 +242,7 @@ Sungcc:
 	BB=$(SUNGcc) \
 	CFLAGS="$(ENVCFLAGS) $(SUNGCCOPT) $(OPT)" \
 	INCLUDE="$(ENVINCLUDE)" \
-	LIBS="$(SUNLIBSO)" \
+	LIBS="$(SUNLIBS)" \
 	OSVER=`../MakeSname`
 
 $(TARGET): $(OBJECT)
@@ -297,7 +300,7 @@ $(OBJDIR)/bbcp_FileSpec.o: bbcp_FileSpec.C bbcp_FileSpec.h bbcp_Config.h \
 	@$(CC) -c $(CFLAGS) $(INCLUDE) $(*F).C -o $(OBJDIR)/$(*F).o
 
 $(OBJDIR)/bbcp_FileSystem.o: bbcp_FileSystem.C bbcp_FileSystem.h \
-                             bbcp_FS_Null.h bbcp_FS_Unix.h
+                             bbcp_FS_Null.h bbcp_FS_Pipe.h bbcp_FS_Unix.h
 	@echo Compiling bbcp_FileSystem.C
 	@$(CC) -c $(CFLAGS) $(INCLUDE) $(*F).C -o $(OBJDIR)/$(*F).o
 
@@ -307,8 +310,14 @@ $(OBJDIR)/bbcp_FS_Null.o: bbcp_FS_Null.C bbcp_FS_Null.h \
 	@echo Compiling bbcp_FS_Null.C
 	@$(CC) -c $(CFLAGS) $(INCLUDE) $(*F).C -o $(OBJDIR)/$(*F).o
 
+$(OBJDIR)/bbcp_FS_Pipe.o: bbcp_FS_Pipe.C  bbcp_FS_Pipe.h    bbcp_FS_Unix.h\
+                          bbcp_IO_Pipe.h  bbcp_FileSystem.h bbcp_System.h \
+                          bbcp_Platform.h bbcp_Pthread.h    bbcp_Emsg.h
+	@echo Compiling bbcp_FS_Pipe.C
+	@$(CC) -c $(CFLAGS) $(INCLUDE) $(*F).C -o $(OBJDIR)/$(*F).o
+
 $(OBJDIR)/bbcp_FS_Unix.o: bbcp_FS_Unix.C bbcp_FS_Unix.h bbcp_FileSystem.h \
-                          bbcp_Config.h  bbcp_IO.h \
+                          bbcp_Config.h  bbcp_IO.h      bbcp_IO_Null.h \
                           bbcp_Platform.h bbcp_System.h bbcp_Pthread.h
 	@echo Compiling bbcp_FS_Unix.C
 	@$(CC) -c $(CFLAGS) $(INCLUDE) $(*F).C -o $(OBJDIR)/$(*F).o
@@ -319,6 +328,11 @@ $(OBJDIR)/bbcp_IO.o: bbcp_IO.C bbcp_IO.h bbcp_NetLogger.h bbcp_Timer.h
 
 $(OBJDIR)/bbcp_IO_Null.o: bbcp_IO_Null.C bbcp_IO_Null.h bbcp_IO.h
 	@echo Compiling bbcp_IO_Null.C
+	@$(CC) -c $(CFLAGS) $(INCLUDE) $(*F).C -o $(OBJDIR)/$(*F).o
+
+$(OBJDIR)/bbcp_IO_Pipe.o: bbcp_IO_Pipe.C bbcp_IO_Pipe.h bbcp_IO.h \
+                          bbcp_System.h
+	@echo Compiling bbcp_IO_Pipe.C
 	@$(CC) -c $(CFLAGS) $(INCLUDE) $(*F).C -o $(OBJDIR)/$(*F).o
 
 $(OBJDIR)/bbcp_Link.o:  bbcp_Link.C bbcp_Link.h bbcp_File.h bbcp_IO.h \

@@ -1,9 +1,9 @@
 /*
- * $Author: abh $
- * $RCSfile: NetLogger.c,v $
- * $Revision: 1.1.1.1 $
- * $Locker:  $
- * $Date: 2010/07/30 01:34:50 $
+ * $Author$
+ * $RCSfile$
+ * $Revision$
+ * $Locker$
+ * $Date$
  */
 
 
@@ -38,7 +38,7 @@
 
 #ifndef lint
 static const char rcsid[] =
-    "@(#) $Id: NetLogger.c,v 1.1.1.1 2010/07/30 01:34:50 abh Exp $";
+    "@(#) $Id$";
 #endif
 
 #include <sys/types.h>

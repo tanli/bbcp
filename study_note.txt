@@ -1,0 +1,6 @@
+bbcp_Config.ConfigInit(argc, argv) ==> Establish default values using a configuration file
+bbcp_Config.Arguments(argc, argv) ==> processing the cmd line parameters
+{
+source node: Protocol.Process(&SS_Node)
+dest node: Protocol.Request(&SS_Node)
+}

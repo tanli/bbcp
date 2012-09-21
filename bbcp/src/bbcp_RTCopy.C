@@ -149,7 +149,7 @@ long long bbcp_RTCopy::Prep(long long rdsk, int rdsz, ssize_t &rlen)
          if (tVal)
             {if (cSize != pSize) {tLim = tVal; pSize = cSize;}
                  else if ((tLim -= bbcp_Config.rtCheck) <= 0)
-                         {rlen = -ETIME; return -1;}
+                         {rlen = -ETIMEDOUT; return -1;}
             }
         }
 

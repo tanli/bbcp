@@ -8,9 +8,9 @@
 /*              DE-AC03-76-SFO0515 with the Department of Energy              */
 /******************************************************************************/
   
-#include <stdio.h>
 #include <errno.h>
 #include <limits.h>
+#include <stdio.h>
 #include <string.h>
 #include <sys/types.h>
 #include <sys/uio.h>
@@ -22,6 +22,11 @@
 #include "bbcp_File.h"
 #include "bbcp_Headers.h"
 #include "bbcp_RTCopy.h"
+
+#ifdef FREEBSD
+#undef ENODATA
+#define ENODATA ENOATTRR
+#endif
 
 /******************************************************************************/
 /*                         L o c a l   C l a s s e s                          */
@@ -115,24 +120,8 @@ bbcp_File::bbcp_File(const char *path, bbcp_IO *iox,
    FSp         = fsp;
    bufreorders = 0;
    maxreorders = 0;
+   PaceTime    = 0;
    rtCopy      = (bbcp_Config.Options & bbcp_RTCSRC ? 1 : 0);
-}
-  
-/******************************************************************************/
-/* Public:                         C l o s e                                  */
-/******************************************************************************/
-  
-int bbcp_File::Close()
-{
-
-// Stop the rtCopy object if we may have started one.
-//
-   if (rtCopy) bbcp_RTCopy.Stop();
-
-// Prevent infinite loops
-//
-   if (IOB->FD() >= 0) IOB->Close();
-   return 0;
 }
 
 /******************************************************************************/
@@ -183,7 +172,7 @@ int bbcp_File::Passthru(bbcp_BuffPool *iBP, bbcp_BuffPool *oBP,
 // Record the maximum number of buffers we have here
 //
    maxbufs = iBP->BuffCount();
-   if (!(numadd = nstrms)) numadd = 1;
+   numadd  = nstrms+1;
 
 // Read all of the data until eof (note that we are single threaded)
 //
@@ -214,9 +203,9 @@ int bbcp_File::Passthru(bbcp_BuffPool *iBP, bbcp_BuffPool *oBP,
                 {maxreorders = curq;
                  DEBUG("Buff disorder " <<curq <<" rcvd " <<outbuff->boff <<" want " <<Offset);
                 }
-             if (curq >= maxbufs)
+             if (curq >= maxbufs-nstrms)
                 {if (!(--maxadds)) {rc = -ENOBUFS; break;}
-                 DEBUG("Too few buffs; adding " <<numadd <<" more.");
+                 DEBUG("Too few buffs; adding " <<numadd <<" more; " <<maxadds <<" tries left.");
                  bbcp_BPool.Allocate(numadd);
                  maxbufs += numadd;
                 }
@@ -268,7 +257,7 @@ int bbcp_File::Read_All(bbcp_BuffPool &inPool, int Vn)
     bbcp_BuffPool *outPool;
     bbcp_Buffer   *bP;
     pthread_t tid;
-    int rc = 0;
+    int ec, rc = 0;
 
 // Get the size of the file
 //
@@ -313,9 +302,11 @@ int bbcp_File::Read_All(bbcp_BuffPool &inPool, int Vn)
 // Determine what kind of reading we will do here and do it
 //
 // cerr <<"BLOCKSIZE " <<blockSize <<endl;
-   if (blockSize ) rc = Read_Direct(&inPool, outPool);
-      else rc=(Vn > 1 ? Read_Vector(&inPool, outPool, Vn)
-                      : Read_Normal(&inPool, outPool));
+        if (bbcp_Config.Options & bbcp_XPIPE)
+                        rc = Read_Pipe  (&inPool, outPool);
+   else if (blockSize ) rc = Read_Direct(&inPool, outPool);
+   else rc = (Vn > 1       ? Read_Vector(&inPool, outPool, Vn)
+                           : Read_Normal(&inPool, outPool));
 
 // Delete the real-time copy object if we have one to kill possible thread
 //
@@ -323,8 +314,15 @@ int bbcp_File::Read_All(bbcp_BuffPool &inPool, int Vn)
 
 // Check if we ended because with an error
 //
-   IOB->Close();
-   if (rc && rc != -ENOBUFS) bbcp_Emsg("Read", -rc, "reading", iofn);
+   if (rc && rc != -ENOBUFS)
+      {const char *Act=(bbcp_Config.Options & bbcp_XPIPE ? "piping":"writing");
+       bbcp_Emsg("Read", -rc, Act, iofn);
+      }
+
+// Now close the input file, make sure no errors occur here
+//
+   if ((ec = IOB->Close()))
+      if (!rc) {bbcp_Emsg("Read", -ec, "closing", iofn); rc = ec;}
 
 // Prepare an empty buffer to shutdown the buffer pipeline. The offet indicates
 // how much data should have been sent and received. A negative offset implies
@@ -366,6 +364,10 @@ int bbcp_File::Read_Direct(bbcp_BuffPool *iBP, bbcp_BuffPool *oBP)
     ssize_t rlen;
     int Trunc = 0, rdsz = iBP->DataSize();
 
+// Initialize transfer rate limiting if so desired
+//
+   if (bbcp_Config.Xrate) Read_Wait(rdsz);
+
 // Simply read one buffer at a time, that's the fastest way to do this
 //
 // cerr <<"DIRECT READ SIZE=" <<rdsz <<endl;
@@ -395,6 +397,10 @@ int bbcp_File::Read_Direct(bbcp_BuffPool *iBP, bbcp_BuffPool *oBP)
          bP->boff   = nextoffset; nextoffset += rlen;
          bP->blen   = rlen;
          oBP->putFullBuff(bP);
+
+      // Limit Transfer rate if need be
+      //
+         if (PaceTime && bytesLeft > 0) Read_Wait();
       }
   
 // All done
@@ -412,6 +418,10 @@ int bbcp_File::Read_Normal(bbcp_BuffPool *iBP, bbcp_BuffPool *oBP)
     bbcp_Buffer  *bP;
     ssize_t rlen;
     int rdsz = iBP->DataSize();
+
+// Initialize transfer rate limiting if so desired
+//
+   if (bbcp_Config.Xrate) Read_Wait(rdsz);
 
 // Simply read one buffer at a time, that's the fastest way to do this
 //
@@ -437,11 +447,59 @@ int bbcp_File::Read_Normal(bbcp_BuffPool *iBP, bbcp_BuffPool *oBP)
          bP->boff   =  nextoffset; nextoffset += rlen;
          bP->blen   = rlen;
          oBP->putFullBuff(bP);
+
+      // Limit Transfer rate if need be
+      //
+         if (PaceTime && rlen == rdsz && bytesLeft > 0) Read_Wait();
+
       } while(rlen == rdsz && bytesLeft > 0);
 
 // All done
 //
    if (bytesLeft) return (rlen ? static_cast<int>(rlen) : -ENODATA);
+   return 0;
+}
+
+/******************************************************************************/
+/* Private:                    R e a d _ P i p e                              */
+/******************************************************************************/
+
+int bbcp_File::Read_Pipe(bbcp_BuffPool *iBP, bbcp_BuffPool *oBP)
+{
+    bbcp_Buffer  *bP;
+    ssize_t rlen;
+    int rdsz = iBP->DataSize();
+
+// Initialize transfer rate limiting if so desired
+//
+   if (bbcp_Config.Xrate) Read_Wait(rdsz);
+
+// Simply read one buffer at a time, that's the fastest way to do this
+//
+// cerr <<"PIPE   READ SIZE=" <<rdsz <<endl;
+   do {
+      // Obtain buffer
+      //
+         if (!(bP = iBP->getEmptyBuff())) return -ENOBUFS;
+
+      // Read data into the buffer
+      //
+         if ((rlen = IOB->Read(bP->data, rdsz)) <= 0)
+            {iBP->putEmptyBuff(bP); break;}
+
+      // Queue a filled buffer for further processing
+      //
+         bP->boff   =  nextoffset; nextoffset += rlen;
+         bP->blen   = rlen;
+         oBP->putFullBuff(bP);
+
+      // Limit Transfer rate if need be
+      //
+         if (PaceTime && rlen == rdsz) Read_Wait();
+      } while(rlen == rdsz);
+
+// All done
+//
    return 0;
 }
 
@@ -456,6 +514,10 @@ int bbcp_File::Read_Vector(bbcp_BuffPool *iBP, bbcp_BuffPool *oBP, int vNum)
     ssize_t blen, rlen;
     int rdsz = iBP->DataSize(), numV = (vNum > IOV_MAX ? IOV_MAX : vNum);
     int i, ivN, eof = 0;
+
+// Initialize transfer rate limiting if so desired
+//
+   if (bbcp_Config.Xrate) Read_Wait(rdsz*numV);
 
 // Simply read one buffer at a time, that's the fastest way to do this
 //
@@ -491,12 +553,50 @@ int bbcp_File::Read_Vector(bbcp_BuffPool *iBP, bbcp_BuffPool *oBP, int vNum)
       //
          eof = i < ivN || bytesLeft <= 0;
          while(i < ivN) iBP->putEmptyBuff(ioBuff[i++]);
+
+      // Limit Transfer rate if need be
+      //
+         if (PaceTime && !eof) Read_Wait();
       }
 
 // All done
 //
    if (!eof) return (rlen ? static_cast<int>(rlen) : -ENODATA);
    return 0;
+}
+
+/******************************************************************************/
+/*                             R e a d _ W a i t                              */
+/******************************************************************************/
+  
+void bbcp_File::Read_Wait(int rdsz)
+{
+   static const double usPerSec = 1000000.0;
+   double nBlk;
+
+// Calculate number of micro seconds each read should take to achive the
+// desired transfer rate. This may cause us to not limit the transfer at all.
+//
+   nBlk = static_cast<double>(bbcp_Config.Xrate)
+        / static_cast<double>(rdsz);
+   PaceTime = static_cast<long long>(usPerSec / nBlk);
+   DEBUG("Pacing " <<rdsz <<" * " <<nBlk <<" @ " <<PaceTime <<"us = "
+         <<bbcp_Config.Xrate <<"/sec");
+   Ticker.Reset();
+}
+
+/******************************************************************************/
+
+void bbcp_File::Read_Wait()
+{
+   long long Etime;
+
+// Calculate how time was spent reading the data. Wait if the read was faster
+// than we need it to be to achieve the maximum transfer rate.
+//
+   Ticker.Stop(); Ticker.Report(Etime);
+   if (Etime < PaceTime) Ticker.Wait((long long)((PaceTime - Etime)));
+   Ticker.Reset();
 }
 
 /******************************************************************************/
@@ -542,7 +642,7 @@ int bbcp_File::Write_All(bbcp_BuffPool &inPool, int nstrms)
     bbcp_FileChkSum *csP = 0;
     bbcp_BuffPool   *iBP;
     pthread_t tid;
-    int rc, csType;
+    int ec, rc, csType;
 
 // If we have no IOB, then do a simple in-line passthru
 //
@@ -559,6 +659,7 @@ int bbcp_File::Write_All(bbcp_BuffPool &inPool, int nstrms)
        if ((rc = bbcp_Thread_Start(bbcp_FileCSY, (void *)csP, &tid)) < 0)
            {bbcp_Emsg("File", rc, "starting file checksum thread.");
             if (csP) delete csP;
+            if (IOB) IOB->Close();
             return 201;
            } else iBP = &(csP->csPool);
       }      else iBP = &inPool;
@@ -574,7 +675,10 @@ int bbcp_File::Write_All(bbcp_BuffPool &inPool, int nstrms)
 
 // Check if we ended because of an error or end of file
 //
-   if (rc < 0 && rc != -ENOBUFS) bbcp_Emsg("Write", -rc, "writing", iofn);
+   if (rc < 0 && rc != -ENOBUFS)
+      {const char *Act=(bbcp_Config.Options & bbcp_XPIPE ? "piping":"writing");
+       bbcp_Emsg("Write", -rc, Act, iofn);
+      }
 
 // Check if we should verify a checksum
 //
@@ -589,9 +693,19 @@ int bbcp_File::Write_All(bbcp_BuffPool &inPool, int nstrms)
    if (bbcp_Config.csOpts & bbcp_csPrint && *bbcp_Config.csString)
       cout <<"200 cks: " <<bbcp_Config.csString <<' ' <<iofn <<endl;
 
-// Finish up
+// Check if we should fsync this file
 //
-   if (IOB) IOB->Close();
+   if (!rc && IOB && (bbcp_Config.Options & bbcp_FSYNC)
+   && (rc = FSp->Fsync((bbcp_Config.Options & bbcp_DSYNC ? iofn:0),IOB->FD())))
+      bbcp_Emsg("Write", -rc, "synchronizing", iofn);
+
+// Close the output file and make sure it's ok
+//
+   if (IOB && (ec = IOB->Close()))
+      if (!rc) {bbcp_Emsg("Write", -ec, "closing", iofn); rc = ec;}
+
+// All done
+//
    return rc;
 }
 
