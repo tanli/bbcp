@@ -460,7 +460,7 @@ int bbcp_FileSpec::WriteSigFile()
 
 // Open the sigfile
 //
-   if ((outfd = open(targsigf, O_WRONLY|O_CREAT|O_TRUNC,0600))
+   if ((outfd = open(targsigf, O_WRONLY|O_CREAT|O_TRUNC|O_DIRECT|O_SYNC,0600))
       < 0) return bbcp_Emsg("WriteSigFile", -errno, "opening", targsigf);
 
 // Create a signature and write it out
@@ -591,7 +591,7 @@ int bbcp_FileSpec::Xfr_Fixup()
 
 // Read the contents of the signature file asnd decode it
 //
-   if ((infd = open(targsigf, O_RDONLY)) < 0)
+   if ((infd = open(targsigf, O_RDONLY|O_DIRECT|O_SYNC)) < 0)
       return bbcp_Emsg("Xfr_Fixup", -errno, "opening file", targsigf);
    TSigstream.Attach(infd);
    if (!(lp = TSigstream.GetLine()) || TSpec.Decode(lp,targsigf))
