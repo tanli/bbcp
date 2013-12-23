@@ -84,6 +84,7 @@ void *bbcp_Buff2Net(void *link)
      long retc = netlink->Buff2Net();
      return (void *)retc;
 }
+
 void *bbcp_Net2Buff(void *link)
 {
 // set up numa affinity
@@ -381,7 +382,7 @@ int bbcp_Node::RecvFile(bbcp_FileSpec *fp, bbcp_Node *Remote)
    if (Child[0]) 
       {char buff[128];
        Parent_Monitor.Start(0,Remote);
-       DEBUG("Waiting for child " <<Child[0] <<" to finish");
+       DEBUG("Wai" <<Child[0] <<" to finish");
        retc = bbcp_OS.Waitpid(Child);
        Parent_Monitor.Stop();
        if (bbcp_Config.Options & bbcp_BLAB)

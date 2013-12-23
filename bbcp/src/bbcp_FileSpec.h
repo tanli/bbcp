@@ -21,7 +21,7 @@ class bbcp_FileSpec
 {
 public:
 
-bbcp_FileSpec        *next;
+bbcp_FileSpec        *next;//pointer to the next element
 char                 *username;
 char                 *hostname;
 char                 *pathname;
@@ -32,7 +32,7 @@ char                 *targpath;
 char                 *targetfn;
 long long             targetsz;
 char                 *targsigf;
-int                   seqno;
+int                   seqno;//sequence number of this file
 struct bbcp_FileInfo  Info;
 
 int              Compose(long long did, char *dpath, int dplen, char *fname);

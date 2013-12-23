@@ -124,18 +124,18 @@ void         Tabs(int x=1) {notabs = !x;}
 /******************************************************************************/
   
 private:
-        int   FD;
-        int   FE;
-        int   bsize;
-        char *buff;
-        char *bnext;
-        int   bleft;
+        int   FD; //fd for read, 7
+        int   FE; //fd for write, 10
+        int   bsize; //buffer size, 2048
+        char *buff; //Buffer to store the control message
+        char *bnext;//next messge need to handle
+        int   bleft;//size of data need to process
         char *recp;
-        char *token;
-        int   flags;
-        pid_t child;
-        int   ecode;
-        int   notabs;
+        char *token;//current processing position
+        int   flags;//bbcp_Stream_EOM
+        pid_t child;//the child process
+        int   ecode;//0
+        int   notabs;//0
         int   xcont;
         int   xline;
 };

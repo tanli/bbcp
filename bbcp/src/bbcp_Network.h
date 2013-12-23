@@ -59,17 +59,17 @@ static int pFirst;
 static int pLast;
 
 int        accWait;
-int        ATune;
-int        iofd;
-int        maxRcvBuff;
-int        maxSndBuff;
-int        maxSegment;
+int        ATune;//flag to show if linux auto tune is on
+int        iofd; //Socket fd
+int        maxRcvBuff;//Max recv buffer size limit
+int        maxSndBuff;//Max send buffer size limit
+int        maxSegment;//Max seg size
 int        netQoS;
 int        Portnum;
-int        protID;
-int        Sender;
-int        Window;
-int        WinSOP;
+int        protID;//protocol numnber of tcp in current system
+int        Sender;// flag denotes if this is the sender side
+int        Window;//TCP window size
+int        WinSOP;//WinSOP = (isSrc ? SO_SNDBUF : SO_RCVBUF)
 
 int   getHostAddr(char *hostname, struct sockaddr_in &InetAddr);
 char *getHostName(struct sockaddr_in &addr);

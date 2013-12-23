@@ -25,19 +25,19 @@ long long     Options;
 int           bindtries;
 int           bindwait;
 int           Mode;
-int           ModeD;
+int           ModeD; //Directory creation mode
 int           ModeDC;
-int           Streams;
+int           Streams; //Number of concurrent streams
 int           BAdd;
 int           Bfact;
-int           BNum;
-int           Progint;
-int           Complvl;
-int           Wsize;
+int           BNum;//number of buffers = 3 * Streams
+int           Progint;//Interval of report, secs
+int           Complvl;//compression level
+int           Wsize; //window size
 int           MaxWindow;
 int           MaxSegSz;
 int           Xrate;
-int           RWBsz;
+int           RWBsz;//possible R/W buffer size, allign to system page size
 
 char         *SrcBuff;
 char         *SrcBase;
@@ -48,9 +48,9 @@ char         *SrcXeq;
 char         *SrAddr;
 char         *SnkXeq;
 char         *Logurl;
-char         *CBhost;
-int           CBport;
-char         *SecToken;
+char         *CBhost; //hostname of the CTL
+int           CBport; //port number of the CTL
+char         *SecToken; //a random string represent a token
 char         *MyAddr;
 char         *MyHost;
 char         *MyUser;
@@ -70,9 +70,9 @@ char         *NumaSpec_SnkTCP;
 char         *NumaSpec_SnkFile;
 char         *NumaSpec_SnkMem;
 bbcp_LogFile *MLog;
-char         *CopyOpts;
-int           CopyOptt;
-int           lastseqno;
+char         *CopyOpts;//in CTL, it is a parameter string after processing the cmd "-m 644 -P 2 -s 4 -W 131072 -Y a53f6319"
+int           CopyOptt;//len of parameter string
+int           lastseqno;//The next sequ number for files need process
 int           TimeLimit;
 int           MTLevel;
 
@@ -110,9 +110,9 @@ char          ubSpec[4];
 char          upSpec[4];
 
 bbcp_FileSpec  *srcPath;
-bbcp_FileSpec  *srcSpec;
-bbcp_FileSpec  *srcLast;
-bbcp_FileSpec  *snkSpec;
+bbcp_FileSpec  *srcSpec;//Source side file objects
+bbcp_FileSpec  *srcLast;//Last file object on source side
+bbcp_FileSpec  *snkSpec;//sink side file objects
 
 const char *SrcArg;
 const char *SnkArg;

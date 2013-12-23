@@ -968,7 +968,7 @@ int bbcp_Protocol::SendArgs(bbcp_Node *Node, bbcp_FileSpec *fsp,
          fsp = fsp->next;
         }
 
-// Send eol
+// Send end of line
 //
    apnt[0] = (char *)"\0"; alen[0] = 1; apnt[1] = 0; alen[1] = 0;
    if (Node->Put(apnt, alen) < 0)

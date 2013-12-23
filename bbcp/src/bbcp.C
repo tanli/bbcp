@@ -70,8 +70,8 @@ main(int argc, char *argv[], char *envp[])
    bbcp_Timer Elapsed_Timer;
    const char *xType;
 
+
 // Process configuration file
-//
    bbcp_OS.EnvP = envp;
    if (bbcp_Config.ConfigInit(argc, argv)) exit(1);
 

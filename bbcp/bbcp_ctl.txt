@@ -1,0 +1,72 @@
+main()
+  bbcp_Protocol()//constructor instance to bbcp_OS
+  bbcp_Timer() //constructor instance to Elapsed_Timer
+    Reset()//TotalTime=0
+  bbcp_Config.ConfigInit(argc, argv) //Processing any config file
+    signal(SIGPIPE, SIG_IGN); //ignore signel pipe
+    MyProg=(the absolute path of the bbcp executable file)
+    //find if there is any config file in environment varible (bbcp_CONFIGFN) or in the home dir with name ".bbcp.cf"
+    //set the fd hardware/software limit to 1024
+  bbcp_Config.Arguments(argc, argv)//processing conmmandline arguments
+    bbcp_Args() //constructor instance to arglist
+      bbcp_Stream()//constructor instance to arglist.arg_stream
+    //Check if this is a control agent
+    arglist.Options(bbcp_VALIDOPTS, argc-1, ++argv)//initialize some of the arglist members
+    bbcp_Config.setOpts(arglist) //initialize the option list which has fullname and abbr name, and save the header to optp
+      bbcp_Opt()//constructor instance to a link list, "optp" is point to the header
+    arglist.getopt() loop //fetch the next cmd option need to process
+      //check if it is at the end of cmd args processing
+      //At the very begining, skip the first arg "bbcp", and the first dash '-'
+      //Check if this option is valid
+      //Check if this option need an arg, if it need a value, check if it is valid and then store to argval member of arglist, the value is then given to the Progint member of bbcp_Config(for -P).
+    //Some other processing for realtime, checksum, and etc functions, and check the mutual exclusive options.
+    arglist.getarg(notctl) loop //produce file list 
+    bbcp_FileSpec()//constructor
+    srcLast->Parse(arglist.argval, isProg)//Parse the filenames
+    //save the pathname/filename/username
+    //check if the number of files input by user is valid
+    //separate source and sink file spec object
+    bbcp_Config.Config_Ctl()
+      //generate all the options we will send to the source and sink
+      Add_Opt()->n2a()
+      //default: in bbcp_Config object," -m 644 -P 2 -s 4 -W 131072 -Y a53f6319"
+    ~bbcp_Arg(), ~bbcp_Stream()
+  Elapsed_Timer.Start(); //record current time to the Elapsed_Timer(bbcp_Timer) object
+  bbcp_Node()//Constructor, create source node object
+    bbcp_ProcMon()//Constructor, create Parent_Monitor object
+      bbcp_CondVar()//Constructor, create CondMon object and initiate mutex and condition varibles
+      bbcp_Semaphore()//Constructor, create monDone object and initiate semaphore varible
+      bbcp_Mutex()//Constructor, create ping object and initiate mutex varible
+    bbcp_Stream()//Constructor, create NStream object 
+  bbcp_Node()//Constructor, create sink node object, same as created the source node
+  //fetch the first group of files(same username and hostname)
+  Protocol.Schedule()
+    sink->Run()
+      //File the nodename(hostname) and the username in this Node object 
+      //Break up the command line of ssh and perform substitutions if we want to connect to another host
+      bbcp_Node.NStream.Exec()//bbcp_Stream.Exec()
+        bbcp_Stream.Drain();//if there is still a child process working on this stream, wait for it
+        //create two pipes to communication with child bidirectionally
+        bbcp_Stream.Attach();
+          bbcp_Stream.Close();//wait any active child process and re-initiate FD/FE/buff
+          //Allocate a new control buffer for the stream
+          //save the pipe fd to FE/FD, save the buffer size(2048)
+          //Fork a process, close child pipe
+    Protocol.SendArgs()
+      //Send the parameter to sink node via pipe,"-m 644 -P 2 -s 4 -W 131072 -Y a53f6319", "-H none:0\n" -H [username:hostname]
+      //Send file name to sink node via pipe, "/dev/null"
+    Protocol.getCBPort() 
+      //processing any left over control message.
+      //Read from FE to a control message, first message is token and port number. "200 Port: 5031\n"
+      //get the control port number from the sink node. " "
+    //Do the same thing to create source_Node, with message "-m 644 -P 2 -s 4 -W 131072 -Y a53f6319", " -H 127.0.0.1:5031" send to pipe
+    Protocol.getEnd(Sink)//check if there is any unprocessed control message on sink side
+    Sink.Wait()//Wait for both Sink and Source node with waitpid
+    Sink.Kill()//kill any assotiated child
+    Source.Kill()
+  //Delete source/sink node and clean all the fds  
+
+
+
+
+ 

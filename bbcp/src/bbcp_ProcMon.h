@@ -41,10 +41,10 @@ private:
 pthread_t      mytid;
 int            alldone;
 int            TimeLimit;
-pid_t          monPID;
+pid_t          monPID;//grand parent pid
 bbcp_CondVar   CondMon;
 bbcp_Semaphore monDone;
 bbcp_Mutex     pingMutex;
-bbcp_Node     *pingNode;
+bbcp_Node     *pingNode;//null
 };
 #endif

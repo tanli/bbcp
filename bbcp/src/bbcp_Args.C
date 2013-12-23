@@ -56,11 +56,11 @@ friend void bbcp_Args::Option(const char *opw, int minl, char optv, char opta);
                if (Optnext) delete Optnext;
               }
 private:
-bbcp_Opt *Optnext;
-char     *Optword;
-int       Optmaxl;
-int       Optminl;
-char      Optvalu[2];
+bbcp_Opt *Optnext; //The next Opt object
+char     *Optword;//full name of the option
+int       Optmaxl;//number of chars in the name
+int       Optminl;//minial value of the option
+char      Optvalu[2];//The abbr for this option and a symbol denote if this option need argument
 };
   
 /******************************************************************************/
@@ -134,7 +134,7 @@ char bbcp_Args::getopt()
                   } else curopt = 0;
               }
               else if (Aloc >= Argc || *Argv[Aloc] != '-') curopt = 0;
-                      else curopt = Argv[Aloc++]+1;
+                      else curopt = Argv[Aloc++]+1; 
 
 // Check if we really have an option here
 //

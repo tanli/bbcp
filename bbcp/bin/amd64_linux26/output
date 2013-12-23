@@ -1,94 +1,87 @@
-bbcp_CTL 17255: Optimum MT level is 8
-bbcp_CTL: Running as pid 17256: ./bbcp SNK 
-bbcp_CTL: Sending to fedora-tl.cewit.stonybrook.edu: bbcp_m 644 -P 2 -s 4 -W 131072 -Y d34ca142 -H none:0
-CTL bbcp_172: : PATH=/usr/kerberos/sbin:/usr/kerberos/bin/dev/null
+bbcp_CTL 20247: Optimum MT level is 8
+bbcp_CTL: Running as pid 20248: ./bbcp SNK 
+bbcp_CTL: Sending to fedora-tl.cewit.stonybrook.edu:  -D -m 644 -P 2 -s 4 -W 131072 -Y 0b0a2154 -H none:0
+
+bbcp_CTL: Sending to fedora-tl.cewit.stonybrook.edu: /dev/null
 
 bbcp_CTL: Sending to fedora-tl.cewit.stonybrook.edu: 
-bbcp_SNK 17256: MaxWin=253952 MaxSeg=536 AT=1
-bbcp_SNK 17256: Window set to 131072 AT=1
-bbcp_SNK 17256: Optimum MT level is 10
-bbcp_SNK 17257: PATH=/usr/kerberos/sbin:/usr/kerberos/bin:/usr/local/bin:/usr/bin:/bin:/usr/local/sbin:/usr/sbin:/sbin:/home/tanli/bin
-bbcp_SNK 17256: Thread 140506696922880 monitoring process 14802
-bbcp_SNK 17256: bind recv window set to -1 (actual=87380)
-bbcp_CTL 17255: Received from fedora-tl.cewit.stonybrook.edu: 200 Port: 5031
+bbcp_CTL 20248: PATH=/usr/kerberos/sbin:/usr/kerberos/bin:/usr/local/bin:/usr/bin:/bin:/usr/local/sbin:/usr/sbin:/sbin:/home/tanli/bin
+bbcp_SNK 20248: MaxWin=253952 MaxSeg=536 AT=1
+bbcp_SNK 20248: Window set to 131072 AT=1
+bbcp_SNK 20248: rwbsz=163840 BNum=12
+bbcp_SNK 20248: Optimum MT level is 10
+bbcp_SNK 20249: PATH=/usr/kerberos/sbin:/usr/kerberos/bin:/usr/local/bin:/usr/bin:/bin:/usr/local/sbin:/usr/sbin:/sbin:/home/tanli/bin
+bbcp_SNK 20248: Thread 139864796976896 monitoring process 18660
+bbcp_SNK 20248: bind recv window set to -1 (actual=87380 segsz=536)
+bbcp_CTL 20247: Received from fedora-tl.cewit.stonybrook.edu: 200 Port: 5031
 
-bbcp_CTL: Running as pid 17259: ./bbcp SRC 
-bbcp_CTL: Sending to fedora-tl.cewit.stonybrook.edu:  -D -m 644 -P 2 -s 4 -W 131072 -Y d34ca142 -H 127.0.0.1:5031
+bbcp_CTL: Running as pid 20251: ./bbcp SRC 
+bbcp_CTL: Sending to fedora-tl.cewit.stonybrook.edu:  -D -m 644 -P 2 -s 4 -W 131072 -Y 0b0a2154 -H 127.0.0.1:5031
 
 bbcp_CTL: Sending to fedora-tl.cewit.stonybrook.edu: /dev/zero
 
-bbcp_CTL: Sending to fedora-tl.cewit.stonybrook.edu: 
-bbcp_CTL 17259: PATH=/usr/kerberos/sbin:/usr/kerberos/bin:/usr/local/bin:/usr/bin:/bin:/usr/local/sbin:/usr/sbin:/sbin:/home/tanli/bin
-bbcp_SRC 17259: MaxWin=253952 MaxSeg=536 AT=1
-bbcp_SRC 17259: Window set to 131072 AT=1
-bbcp_SRC 17259: Optimum MT level is 8
-bbcp_SRC 17260: PATH=/usr/kerberos/sbin:/usr/kerberos/bin:/usr/local/bin:/usr/bin:/bin:/usr/local/sbin:/usr/sbin:/sbin:/home/tanli/bin
-bbcp_SRC 17259: Thread 140383548991232 monitoring process 14802
-bbcp_SRC 17259: connect send window set to -1 (actual=16384)
-bbcp_SRC: Sending to fedora-tl.cewit.stonybrook.edu: login ctlr d34ca142 wsz: +131072 ver: 10.08.29.00.0 dsz: 163840
+bbcp_CTL: Sending to fedora-tl.cewit.stonybrook.edu: b: PATH=/usr/kerberos/sbin:/usr/kerberos/bin:/usr/local/bin:/usr/bin:/bin:/usr/local/sbin:/usr/sbin:/sbin:/home/tanli/bin
+bbcp_SRC 20251: MaxWin=253952 MaxSeg=536 AT=1
+bbcp_SRC 20251: Window set to 131072 AT=1
+bbcp_SRC 20251: rwbsz=163840 BNum=12
+bbcp_SRC 20251: Optimum MT level is 8
+bbcp_SRC 20252: PATH=/usr/kerberos/sbin:/usr/kerberos/bin:/usr/local/bin:/usr/bin:/bin:/usr/local/sbin:/usr/sbin:/sbin:/home/tanli/bin
+bbcp_SRC 20251: Thread 139709795673856 monitoring process 18660
+bbcp_SRC 20251: getFS norm /dev/zero
+bbcp_SRC 20251: connect send window set to -1 (actual=16384 segsz=536)
+bbcp_SRC 20251: Connected to: fedora-tl.cewit.stonybrook.edu:5031
+bbcp_SRC: Sending to fedora-tl.cewit.stonybrook.edu: login ctlr 0b0a2154 wsz: +131072 ver: 12.08.17.00.0 dsz: 163840
 
-bbcp_SNK 17256: accept recv window set to -1 (actual=87712)
-bbcp_SNK 17256: Received from fedora-tl.cewit.stonybrook.edu: login ctlr d34ca142 wsz: +131072 ver: 10.08.29.00.0 dsz: 163840
+bbcp_SNK 20248: accept recv window set to -1 (actual=87712 segsz=16384)
+bbcp_SNK 20248: Received from fedora-tl.cewit.stonybrook.edu: login ctlr 0b0a2154 wsz: +131072 ver: 12.08.17.00.0 dsz: 163840
 
 bbcp_SNK: Sending to fedora-tl.cewit.stonybrook.edu: 204 loginok wsz: 131072 163840
 
-bbcp_SRC 17259: Received from fedora-tl.cewit.stonybrook.edu: 204 loginok wsz: 131072 163840
+bbcp_SRC 20251: Received from fedora-tl.cewit.stonybrook.edu: 204 loginok wsz: 131072 163840
 
-bbcp_SRC 17259: connect send window set to -1 (actual=16384)
-bbcp_SNK 17256: accept recv window set to -1 (actual=87712)
-bbcp_SRC: Sending to fedora-tl.cewit.stonybrook.edu: login data d34ca142
+bbcp_SRC 20251: connect send window set to -1 (actual=16384 segsz=536)
+bbcp_SNK 20248: accept recv window set to -1 (actual=87712 segsz=16384)
+bbcp_SRC 20251: Connected to: fedora-tl.cewit.stonybrook.edu:5031
+bbcp_SRC: Sending to fedora-tl.cewit.stonybrook.edu: login data 0b0a2154
 
-bbcp_SNK 17256: Received from fedora-tl.cewit.stonybrook.edu: login data d34ca142
+bbcp_SNK 20248: Received from fedora-tl.cewit.stonybrook.edu: login data 0b0a2154
 
-bbcp_SRC 17259: connect send window set to -1 (actual=16384)
-bbcp_SRC: Sending to fedora-tl.cewit.stonybrook.edu: login data d34ca142
+bbcp_SRC 20251: connect send window set to -1 (actual=16384 segsz=536)
+bbcp_SRC 20251: connect send window set to -1 (actual=16384 segsz=536)
+bbcp_SNK 20248: accept recv window set to -1 (actual=87712 segsz=16384)
+bbcp_SRC 20251: connect send window set to -1 (actual=16384 segsz=536)
+bbcp_SRC 20251: Connected to: fedora-tl.cewit.stonybrook.edu:5031
+bbcp_SRC: Sending to fedora-tl.cewit.stonybrook.edu: login data 0b0a2154
 
-bbcp_SNK 17256: accept recv window set to -1 (actual=87712)
-bbcp_SNK 17256: Received from fedora-tl.cewit.stonybrook.edu: login data d34ca142
+bbcp_SNK 20248: Received from fedora-tl.cewit.stonybrook.edu: login data 0b0a2154
 
-bbcp_SRC 17259: connect send window set to -1 (actual=16384)
-bbcp_SRC 17259: connect send window set to -1 (actual=16384)
-bbcp_SNK 17256: accept recv windSRC: Sending (acfedor87712)
-wit.stonybrook.edu: login data d34ca142
+bbcp_SNK 20248: accept recv window set to -1 (actual=87712 segsz=16384)
+bbcp_SRC 20251: Connected to: fedora-tl.cewit.stonybrook.edu:5031
+bbcp_SRC: Sending to fedora-tl.cewit.stonybrook.edu: login data 0b0a2154
 
-bbcp_SRC: Sending to fedora-tl.cewit.stonybrook.edu: login data d34ca142
+bbcp_SNK 20248: Received from fedora-tl.cewit.stonybrook.edu: login data 0b0a2154
 
-bbcp_SNK 17256: Received from fedora-tl.cewit.stonybrook.edu: login data d34ca142
+bbcp_SNK 20248: accept recv window set to -1 (actual=87712 segsz=16384)
+bbcp_SRC 20251: Connected to: fedora-tl.cewit.stonybrook.edu:5031
+bbcp_SRC: Sending to fedora-tl.cewit.stonybrook.edu: login data 0b0a2154
 
-bbcp_SNK 17256: accept recv window set to -1 (actual=87712)
-bbcp_SNK 17256: Received from fedora-tl.cewit.stonybrook.edu: login data d34ca142
+bbcp_SNK 20248: Received from fedora-tl.cewit.stonybrook.edu: login data 0b0a2154
 
-bbcp_SNK 17256: Allocated 12 167936 (163840) byte buffs in the net pool.
+bbcp_SNK 20248: Allocated 12 167936 (163840) byte buffs in the net pool.
+bbcp_SNK 20248: getFS norm /dev/null
 bbcp_SNK: Sending to fedora-tl.cewit.stonybrook.edu: flist
 
-bbcp_SRC 17259: Allocated 12 163840 (159744) byte buffs in the net pool.
-bbcp_SRC 17259: Received from fedora-tl.cewit.stonybrook.edu: flist
+bbcp_SRC 20251: Allocated 12 163840 (159744) byte buffs in the net pool.
+bbcp_SRC 20251: Received from fedora-tl.cewit.stonybrook.edu: flist
 
 bbcp_SRC: Sending to fedora-tl.cewit.stonybrook.edu: 0 f 0 0 9223372036854775807 0 0 other zero
 
-bbcp_SNK 17256: Received from fedora-tl.cewit.stonybrook.edu: 0 f 0 0 9223372036854775807 0 0 other zero
-
 bbcp_SRC: Sending to fedora-tl.cewit.stonybrook.edu: eol
 
-bbcp_SNK 17256: Received from fedora-tl.cewit.stonybrook.edu: eol
+bbcp_SNK 20248: Received from fedora-tl.cewit.stonybrook.edu: 0 f 0 0 9223372036854775807 0 0 other zero
 
-bbcp_SNK 17256: Preparing to copy 1 file(s); bytes=9223372036854775807
-bbcp_SNK: Sending to fedora-tl.cewit.stonybrook.edu: get 0 0 zero 0
-
-bbcp_SRC 17259: Received from fedora-tl.cewit.stonybrook.edu: get 0 0 zero 0
+bbcp_SNK 20248: Compose ? 0 /dev/null bbcp_SRC 20251: Received from fedora-tl.cewit.stonybrook.edu: get 0 0 zero 0
 
 bbcp_SRC: Sending to fedora-tl.cewit.stonybrook.edu: 204 getok
 
-bbcp_SNK 17256: Received from fedora-tl.cewit.stonybrook.edu: 204 getok
-
-bbcp_SNK.RecvFile: Creating /dev/null/zero
-bbcp_SNK 17266: Thread 140506696922880 assigned to stream 0
-bbcp_SRC 17259: Thread 140383507031808 monitoring process 17255
-bbcp_SNK 17266: Thread 140506684417792 assigned to stream 1
-bbcp_SNK 17266: Thread 140506673927936 assigned to stream 2
-bbcp_SNK 17266bbThread SRC 06663438080 assigned to stream 317269: Thread 140383548991232 assigned to stream 0
-bbcp_SNK 17266: ThreaSR1 17269: Thread 140383507031808 assigned to stream 1
-bbcp_SRC 17269: Thread 140383517521664 assigned to stream 2
-bbcp_SRC 17269: Thread 140383528011520 assigned to stream 3
-bbcp_SRC 17269: Thread 140383287768832 monitoring process 17259
-bbcp: 120412 22:14:54  0% done; 971.508202 MB/s
+bbcp_SRC 20251: Sending file 

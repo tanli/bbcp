@@ -201,6 +201,7 @@ int bbcp_Stream::Exec(char **parm, int inrd, int inerr)
                    close(fildes_In[1]);
         if (inrd)  close(fildes_Out[0]);
         if (inerr) close(fildes_Err[0]);
+        sleep(120);
         return retc;
        }
 

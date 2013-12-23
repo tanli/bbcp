@@ -8,21 +8,21 @@ BINDIR     = ../bin/$(OSVER)
 
 OBJDIR     = ../obj/$(OSVER)
 
-ENVCFLAGS  =    -Dunix -D_BSD -D_ALL_SOURCE -g
+ENVCFLAGS  =    -Dunix -D_BSD -D_ALL_SOURCE
 
 ENVINCLUDE = -I. -I/usr/local/include -I/usr/include
 
-AIXLIBS    =  -q64 -L/usr/lib -lz -lpthreads -g
+AIXLIBS    =  -q64 -L/usr/lib -lz -lpthreads
 
-BSDLIBS    =  -L/usr/lib -lz -pthread -g
+BSDLIBS    =  -L/usr/lib -lz -pthread
 
 LNXLIBS32  =  -lnsl -lpthread -lrt -lz
-LNXLIBS64  =  -lnsl -lpthread -lrt -lz -lnuma -g
+LNXLIBS64  =  -lnsl -lpthread -lrt -lz -lnuma
 
-MACLIBS    =  -dynamic -L/usr/lib -lz   -g -lpthread
+MACLIBS    =  -dynamic -L/usr/lib -lz                       -lpthread
 
-SUNLIBSA   =  /usr/local/lib/libz.a -lposix4 -lsocket -lnsl -lpthread -g
-SUNLIBS    =  -L/usr/lib -lz -lposix4 -lsocket -lnsl -lpthread -g
+SUNLIBSA   =  /usr/local/lib/libz.a -lposix4 -lsocket -lnsl -lpthread
+SUNLIBS    =  -L/usr/lib -lz -lposix4 -lsocket -lnsl -lpthread
 
 MKPARMS  = doitall
 
@@ -423,40 +423,3 @@ $(OBJDIR)/bbcp_ZCX.o: bbcp_ZCX.C bbcp_ZCX.h bbcp_BuffPool.h bbcp_Emsg.h
 $(OBJDIR)/NetLogger.o: NetLogger.c NetLogger.h
 	@echo Compiling NetLogger.c
 	@$(BB) -c $(BFLAGS) $(INCLUDE) $(*F).c -o $(OBJDIR)/$(*F).o
-# DO NOT DELETE
-
-bbcp.o: /usr/include/unistd.h /usr/include/features.h
-bbcp.o: /usr/include/sys/cdefs.h /usr/include/bits/wordsize.h
-bbcp.o: /usr/include/gnu/stubs.h /usr/include/gnu/stubs-64.h
-bbcp.o: /usr/include/bits/posix_opt.h /usr/include/bits/environments.h
-bbcp.o: /usr/include/bits/types.h /usr/include/bits/typesizes.h
-bbcp.o: /usr/include/bits/confname.h /usr/include/getopt.h
-bbcp.o: /usr/include/ctype.h /usr/include/endian.h /usr/include/bits/endian.h
-bbcp.o: /usr/include/bits/byteswap.h /usr/include/xlocale.h
-bbcp.o: /usr/include/errno.h /usr/include/bits/errno.h
-bbcp.o: /usr/include/linux/errno.h /usr/include/asm/errno.h
-bbcp.o: /usr/include/asm-generic/errno.h
-bbcp.o: /usr/include/asm-generic/errno-base.h /usr/include/stdlib.h
-bbcp.o: /usr/include/bits/waitflags.h /usr/include/bits/waitstatus.h
-bbcp.o: /usr/include/sys/types.h /usr/include/time.h
-bbcp.o: /usr/include/sys/select.h /usr/include/bits/select.h
-bbcp.o: /usr/include/bits/sigset.h /usr/include/bits/time.h
-bbcp.o: /usr/include/sys/sysmacros.h /usr/include/bits/pthreadtypes.h
-bbcp.o: /usr/include/alloca.h /usr/include/string.h /usr/include/strings.h
-bbcp.o: /usr/include/stdio.h /usr/include/libio.h /usr/include/_G_config.h
-bbcp.o: /usr/include/wchar.h /usr/include/bits/stdio_lim.h
-bbcp.o: /usr/include/bits/sys_errlist.h /usr/include/sys/param.h
-bbcp.o: /usr/include/limits.h /usr/include/bits/posix1_lim.h
-bbcp.o: /usr/include/bits/local_lim.h /usr/include/linux/limits.h
-bbcp.o: /usr/include/bits/posix2_lim.h /usr/include/linux/param.h
-bbcp.o: /usr/include/asm/param.h /usr/include/asm-generic/param.h bbcp_Args.h
-bbcp.o: bbcp_Stream.h bbcp_Config.h bbcp_Debug.h bbcp_Headers.h
-bbcp.o: bbcp_FileSpec.h /usr/include/utime.h bbcp_FileSystem.h
-bbcp.o: /usr/include/sys/stat.h /usr/include/bits/stat.h bbcp_LogFile.h
-bbcp.o: /usr/include/sys/uio.h /usr/include/bits/uio.h bbcp_Timer.h
-bbcp.o: /usr/include/sys/time.h bbcp_Pthread.h /usr/include/pthread.h
-bbcp.o: /usr/include/sched.h /usr/include/bits/sched.h
-bbcp.o: /usr/include/bits/setjmp.h /usr/include/semaphore.h
-bbcp.o: /usr/include/bits/semaphore.h bbcp_Node.h bbcp_File.h bbcp_BuffPool.h
-bbcp.o: bbcp_IO.h bbcp_Link.h /usr/include/fcntl.h /usr/include/bits/fcntl.h
-bbcp.o: bbcp_ChkSum.h bbcp_ProcMon.h bbcp_Protocol.h bbcp_System.h

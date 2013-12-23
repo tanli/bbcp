@@ -34,19 +34,19 @@ void  Options(char *opts, int argc, char **argv);
 
     ~bbcp_Args();
 
-char *argval;
+char *argval; //value of current option
 
 private:
 
-char            *epfx;
-bbcp_Opt        *optp;
-char            *vopts;
-char            *curopt;
+char            *epfx;//bbcp: 
+bbcp_Opt        *optp; //pointer to the the header of option link list
+char            *vopts;//all the vaild cmd options
+char            *curopt;//current position of cmd processing
 int              MOA;
 int              inStream;
-int              endopts;
+int              endopts;//flag show if it is the end of the options need to process
 int              Argc;
-int              Aloc;
+int              Aloc; //index inside a cmd line args (including file list)
 char           **Argv;
 bbcp_Stream      arg_stream;
 };

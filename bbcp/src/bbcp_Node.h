@@ -73,7 +73,7 @@ bbcp_Link   *data_link[BBCP_MAXSTREAMS];
 bbcp_File   *comp1File, *comp2File;
 bbcp_Stream NStream;
 char       *nodename;
-int         dlcount;
+int         dlcount;//number of data link established
 int         iocount;
 
 void       chkWsz(int fd, int Final=0);

@@ -1,0 +1,67 @@
+getpid()
+close the pipe fd used at ctl agent side
+redirect the std input to Child_In
+redirect the std output to Child_Out
+launch the ssh to the remote host "ssh -x -a -oFallBackToRsh=no -l username hostname bbcp SNK"
+main()
+   bbcp_Config.ConfigInit(argc, argv);
+   bbcp_Config.Arguments(argc, argv);
+     signal(SIGPIPE, SIG_IGN); //ignore signel pipe
+     bbcp_Args() //constructor instance to arglist
+       bbcp_Stream()//constructor instance to arglist.arg_stream
+     //bbcp_Config.Options=SNK
+     arglist.Options(bbcp_SSOPTIONS, STDIN_FILENO)
+       bbcp_Stream.Attach()
+         //Allocate a control message buffer, *buff
+         //save the STDIN_FILENO to FD/FE
+       arglist.arg_stream.GetLine()//get message from CTL
+         //read FD, get "-m 644 -P 2 -s 4 -W 131072 -Y 78826f52 -H none:0\n/dev/null\n"
+         //use "\n" as symbol, put the first messge in buff, the next in bnext, update bleft
+         //insert a "\0" to separate messages
+     arglist.getopt()
+         //get the firt option from current token/buff "-m"
+         //skip the dash "-", curopt="m"
+         //check if it is a extended options or single letter option
+         //check if this option need a argu, if do, get the value and save in arglist.argval
+     //process this option "m" (switch)
+     a2o("mode", arglist.argval, Mode, 1, 07777) 
+       //save the value "644->420" to bbcp_Config.Mode 
+       //check if this value if vaild, less than max, and more than min
+     //repeat from arglist.getopt() to proccessing all the options. The parameters are saved in the members of bbcp_Config object, Progint=2, Stream=4, Wsize=128K, SecToken=78826f52, CBhost=[hostname of CTL], CBport=[port number]
+     //some realtime, checksum, I/O ordering, and mutually exclusive
+     arglist.getarg(notctl)
+       arglist.arg_stream.GetLine()//get file name "/dev/null", arglist.arg_stream.argval
+     bbcp_FileSpec()//Constructor, create a instance to srcLast
+     srcLast->Parse(arglist.argval, isProg); //Save the file info, such pathname, filename, username, hostname to srcLast object
+     arglist.arg_stream.Detach()//Finish save parameters, reinitiate FD/FE=-1, inStream=0
+     snkSpec = srcSpec //sink and src point to the same "/dev/null" file
+     bbcp_Config.Config_Xeq(rwbsz);
+       bbcp_Net.Flow(Options & bbcp_SRC) //save the role of current process to bbcp_Network.Sender, save SO_REVBUF to 
+       bbcp_Net.MaxWSize(Options & bbcp_SNK)//Get maximum window size 
+         //Create a socket fd to test the max window size from the system
+         //get the max Segment size and save to bbcp_Network.maxSegment
+       //check if current window size is with the max limit 
+       bbcp.setRWB()
+       //Check if we have exceeded 25% of current available memory space
+     //Compute MT level       
+  //Create a bbcp_ProcMon instance to theAgent, this will allocate some mutex and semapore
+  theAgent.Start(bbcp_OS.getGrandP())// wil fork a new process to execute "ps -o PPID -pid []"
+    bbcp_OS.getGrandP()//Check if grand parent process is alive, and return the pid of it
+    bbcp_Thread_Run(bbcp_MonProc, (void *)this, &mytid)//creat a thread to start monitor, detach it
+  //create a bbcp_Node instance to SS_Node
+  Protocol.Request(&SS_Node)
+    SS_Node->Start(this, !(bbcp_Config.Options & bbcp_CON2SRC)
+      SS_Node->Incomming(protocol=[the pointer to the protocol object)
+         bbcp_Net.findPort(minport, maxport); //try to find specific port for tcp connection
+         bbcp_Net.Bind(BBCP_DFLTMINPORT(5031), BBCP_DFLTMAXPORT(5039), 1, -1)
+           iofd = socket(PF_INET, SOCK_STREAM, 0)
+           setsockopt(xfd,SOL_SOCKET,SO_REUSEADDR,(ssval_t)&one,szone)
+           //set the socket fd with TCP_NODELAY, and IP_TOS
+           bind() and listen() on port 5031
+         Protocol->setCBPort(5031)//send the port number to CTL via stdout
+         bbcp_Net.Accept()//Establish all of the connections
+           //wait on the port(5031) using poll
+         protocol->Login(link, 1)// 
+           bbcp_Protocol:Process_login()
+         
+                 
