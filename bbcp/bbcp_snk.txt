@@ -61,4 +61,7 @@ main()
          Protocol->setCBPort(5031)//send the port number to CTL via stdout
          bbcp_Net.Accept()//Establish all of the connections
            //wait on the port(5031) using poll
- 
+         bbcp_Protocol.Request_login(net)
+          accpet connection on control port
+          Read control messge from src "login ctlr 3aa16253 wsz: +131072 ver: 12.08.17.00.0 dsz: 163840" 
+          Respond to this login request "204 loginok wsz: 131072 163840\n"
