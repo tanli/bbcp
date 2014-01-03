@@ -261,18 +261,18 @@ int bbcp_File::Read_All(bbcp_BuffPool &inPool, int Vn)
 
 // Get the size of the file
 //
-   if ((bytesLeft = FSp->getSize(IOB->FD())) < 0)
-      {bbcp_Emsg("Read", static_cast<int>(-bytesLeft), "stat", iofn);
-       inPool.Abort(); return 200;
-      }
+//   if ((bytesLeft = FSp->getSize(IOB->FD())) < 0)
+//      {bbcp_Emsg("Read", static_cast<int>(-bytesLeft), "stat", iofn);
+//       inPool.Abort(); return 200;
+//      }
 
 // Adjust bytes left based on where we will be reading from
 //
-   bytesLeft -= nextoffset;
-   if (bytesLeft < 0)
-      {bbcp_Emsg("Read", ESPIPE, "stat", iofn);
-       inPool.Abort(); return 200;
-      }
+//   bytesLeft -= nextoffset;
+//   if (bytesLeft < 0)
+//      {bbcp_Emsg("Read", ESPIPE, "stat", iofn);
+//       inPool.Abort(); return 200;
+//      }
 
 // If this is a real-time copy operation, start the rtcopy object
 //

@@ -68,6 +68,20 @@ void *bbcp_doWrite(void *pp)
      long retc = fp->Write_All(bbcp_BPool, bbcp_Config.Streams);
      return (void *)retc;
 }
+
+void bbcp_Stor2Buff(void *inFile)
+{
+
+    bbcp_File *file = (bbcp_FileSpec *)inFile;
+    int retc;
+
+   if (bbcp_Config.Options & bbcp_COMPRESS) retc=file->Read_All(bbcp_APool,1);
+      else retc = file->Read_All(bbcp_BPool, bbcp_Config.Bfact);
+   DEBUG("File read ended; rc=" <<retc);
+
+   return (void *)retc;
+}
+
 void *bbcp_Buff2Net(void *link)
 {
 // set up numa affinity
@@ -214,7 +228,7 @@ int bbcp_Node::Run(char *user, char *host, char *prog, char *parg)
                 if (*pp) {*pp = '\0'; pp++;}
                 if (*ap == '%' && !ap[2])
                    {     if (ap[1] == 'I')
-                            {if (bbcp_Config.IDfn)
+
                                 {Argv[numa++] = (char *)"-i";
                                  Argv[numa] = bbcp_Config.IDfn;}
                                 else numa--;
@@ -527,13 +541,14 @@ int bbcp_Node::RecvFile(bbcp_FileSpec *fp, bbcp_Node *Remote)
 int bbcp_Node::SendFile(bbcp_FileSpec *fp)
 {
    const char *Act = "opening";
-   int i, retc, tretc = 0, Mode = 0;
+   int i, retc, tretc = 0, Mode = 0, ioSize = bbcp_BPool.DataSize();
    pid_t Child[2] = {0,0};
-   bbcp_File *inFile;
+   bbcp_File *inFile_tmp, *inFile[BBCP_MAXSTREAMS+1];
    bbcp_ProcMon *TLimit = 0;
-   bbcp_ZCX *cxp;
+   bbcp_ZCX *cxp[BBCP_MAXSTREAMS+1];
    pthread_t tid, link_tid[BBCP_MAXSTREAMS+1];
-
+   int stor_num = 4, task_num = 0;
+   long long offset = 0, tasksize, load;
 // Set open options (check for pipes)
 //
    if (bbcp_Config.Options & bbcp_XPIPE)
@@ -569,19 +584,6 @@ int bbcp_Node::SendFile(bbcp_FileSpec *fp)
    if (bbcp_Config.Options & bbcp_IDIO) {fp->FSys()->DirectIO(1);
        DEBUG("Direct input requested.");}
 
-// Open the input file and set starting offset
-//
-   if (!(inFile = fp->FSys()->Open(fp->pathname,O_RDONLY,Mode,fp->fileargs)))
-      {bbcp_Emsg("SendFile", errno, Act, fp->pathname);
-       exit(2);
-      }
-   if (fp->targetsz && ((retc = inFile->Seek(fp->targetsz)) < 0))
-      return bbcp_Emsg("SendFile",retc,"setting read offset for",fp->pathname);
-
-// If compression is wanted, set up the compression objects
-//
-   if (bbcp_Config.Options & bbcp_COMPRESS 
-   && !(cxp = setup_CX(1, inFile->ioFD()))) return -ECANCELED;
 
 // Start a thread for each data link we have
 //
@@ -617,33 +619,89 @@ int bbcp_Node::SendFile(bbcp_FileSpec *fp)
        numa_run_on_node_mask(numa_src_file_mask);
        }
 
+//split the storage I/O task evenly to storage threads
+  //open file
+     if (!(inFile_tmp = fp->FSys()->Open(fp->pathname,O_RDONLY,Mode,fp->fileargs)))
+           {bbcp_Emsg("SendFile", errno, Act, fp->pathname);
+            exit(2);
+           }
+  //get the file size
+     if((tasksize=inFile_tmp->FSp->getSize(inFile_tmp->IOB->FD())) < 0)
+          {bbcp_Emsg("SendFile", static_cast<int>(-tasksize), "stat", inFile_tmp->iofn);
+           bbcp_BPool.Abort(); return 200;
+          }
+  //Close the file
+     delete inFile_tmp;
+ 
+  //check whether we need the requested the number of storage threads
+   tasksize -= fp->targetsz;
+   if((task_num = tasksize/ioSize) == 0) stor_num = 1;
+   else stor_num = (stor_num > task_num ? task_num : stor_num);
 
-// Read the whole file
-//
-   if (bbcp_Config.Options & bbcp_COMPRESS) retc=inFile->Read_All(bbcp_APool,1);
-      else retc = inFile->Read_All(bbcp_BPool, bbcp_Config.Bfact);
-   DEBUG("File read ended; rc=" <<retc);
+  //using the buffer size and file size to compute the offset for each thread, and create them
+   offset = fp->targetsz;
+   for(i=0;i<stor_num;i++)
+      {
+//Open file and get a bbcp_File object
+       if (!(inFile[i] = fp->FSys()->Open(fp->pathname,O_RDONLY,Mode,fp->fileargs)))
+         {bbcp_Emsg("SendFile", errno, Act, fp->pathname);
+         exit(2);
+         }
 
-// Wait for compression thread to end
+// If compression is wanted, set up the compression objects
+       if (bbcp_Config.Options & bbcp_COMPRESS
+          && !(cxp[i] = setup_CX(1, inFile[i]->ioFD()))) return -ECANCELED;
+
+//set the offset and workload for current thread, special handling for the last thread
+       if (offset && ((retc = inFile[i]->Seek(offset)) < 0))
+          return bbcp_Emsg("SendFile",retc,"setting read offset for",fp->pathname);
+       load = ((i == (stor_num-1)) ? (tasksize + fp->targetsz - offset) : (((task_num/4)+1) * ioSize));
+       if (load < 0)
+       {bbcp_Emsg("Read", ESPIPE, "stat", iofn);
+        bbcp_BPool.Abort(); return 200;
+       }
+       else
+       inFile[i]->setLoad(load);
+
+//create thread and save the tid
+       if ((retc = bbcp_Thread_Start(bbcp_Stor2Buff,
+                                (void *)inFile[i], &tid))<0)
+            {bbcp_Emsg("SendFile",retc,"starting storage thread for",fp->pathname);
+             _exit(100);
+            }
+          inFile[i]->setTid(tid);
+       if (i >= stor_num) {DEBUG("Thread " <<tid <<" assigned to storage data clocker");}
+           else {DEBUG("Thread " <<tid <<" assigned to storage stream " <<i);}
+       offset += load;
+     }
+
+// Wait for all compression and storage threads to end
 //
-   if (bbcp_Config.Options & bbcp_COMPRESS)
-      {if (tretc = (long)bbcp_Thread_Wait(cxp->TID)) retc = 128;
-       DEBUG("File compression ended; rc=" <<tretc);
-       delete cxp;
+  
+  for(i=0;i<stor_num;i++)
+  {if (bbcp_Config.Options & bbcp_COMPRESS)
+      {if (tretc = (long)bbcp_Thread_Wait(cxp[i]->TID)) retc = 128;
+
+       DEBUG("Thread " <<link_tid[i] <<"File compression ended " <<i <<" ended; rc=" <<tretc);
+       delete cxp[i];
       }
+   
+      if (tretc = (long)bbcp_Thread_Wait(inFile[i]->getTid)) retc = 128;
+        DEBUG("Thread " <<link_tid[i] <<"storage stream " <<i <<" ended; rc=" <<tretc);
+      delete inFile[i];
+   }
 
-// Make sure each link thread has terminated normally.
+// Make sure each network link thread has terminated normally.
 //
    for (i = 0; i < iocount; i++)
        {if (tretc = (long)bbcp_Thread_Wait(link_tid[i])) retc = 128;
-        DEBUG("Thread " <<link_tid[i] <<" stream " <<i <<" ended; rc=" <<tretc);
+        DEBUG("Thread " <<link_tid[i] <<"network stream " <<i <<" ended; rc=" <<tretc);
        }
 
 // All done
 //
    if (TLimit) delete TLimit;
    Parent_Monitor.Stop();
-   delete inFile;
    close(1); close(2);
    DEBUG("Process " <<getpid() <<" exiting with rc=" <<retc);
    exit(retc);

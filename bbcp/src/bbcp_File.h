@@ -67,7 +67,9 @@ int          Seek(long long offv) {nextoffset = offv; return IOB->Seek(offv);}
 // setSize() sets the expected file size
 //
 void         setSize(long long top) {lastoff = top;}
-
+void         setTid(pthread_t worker) {tid = worker;}
+pthread_t    getTid() {return tid;}
+void         setLoad(long long load) {bytesLeft = load;}
 // Stats() reports the i/o time and buffer wait time in milliseconds and
 //         returns the total number of bytes transfered.
 //
@@ -99,6 +101,7 @@ int              curq;
 bbcp_IO         *IOB;
 bbcp_FileSystem *FSp;
 char            *iofn;
+pthread_t       tid;
 
 bbcp_Buffer *getBuffer(long long offset);
 int          Read_Direct (bbcp_BuffPool *inB, bbcp_BuffPool *otP);
