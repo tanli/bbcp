@@ -328,14 +328,14 @@ int bbcp_File::Read_All(bbcp_BuffPool &inPool, int Vn)
 // how much data should have been sent and received. A negative offset implies
 // that we encountered an error.
 //
-   if (!(bP = inPool.getEmptyBuff())) return 255;
-   bP->blen = 0;
-   bP->boff = (rc ? -1 : nextoffset);
 
 // Verify check sum if so wanted. Note that is link-level check summing is in
 //
    if (csP)
-      {csP->csPool.putFullBuff(bP);
+      {if (!(bP = inPool.getEmptyBuff())) return 255;
+       bP->blen = 0;
+       bP->boff = (rc ? -1 : nextoffset);
+       csP->csPool.putFullBuff(bP);
        bbcp_Thread_Wait(tid);
        if (!rc && *bbcp_Config.csString)
           {char *csTxt, *csVal = csP->csObj->Final(&csTxt);

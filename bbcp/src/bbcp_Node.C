@@ -69,15 +69,24 @@ void *bbcp_doWrite(void *pp)
      return (void *)retc;
 }
 
-void bbcp_Stor2Buff(void *inFile)
+void *bbcp_Stor2Buff(void *inFile)
 {
 
-    bbcp_File *file = (bbcp_FileSpec *)inFile;
+    bbcp_File *file = (bbcp_File *)inFile;
     int retc;
+
+// set up numa affinity
+//
+    if (bbcp_Config.NumaSpec_SrcFile)
+       {
+       struct bitmask *numa_src_file_mask = numa_parse_nodestring(bbcp_Config.NumaSpec_SrcFile);
+       if (numa_src_file_mask == NULL)
+          bbcp_Emsg("NUMA", -E2BIG, "parse NumaSpec_SrcFile fail", bbcp_Config.NumaSpec_SrcFile);
+       numa_run_on_node_mask(numa_src_file_mask);
+       }
 
    if (bbcp_Config.Options & bbcp_COMPRESS) retc=file->Read_All(bbcp_APool,1);
       else retc = file->Read_All(bbcp_BPool, bbcp_Config.Bfact);
-   DEBUG("File read ended; rc=" <<retc);
 
    return (void *)retc;
 }
@@ -228,11 +237,11 @@ int bbcp_Node::Run(char *user, char *host, char *prog, char *parg)
                 if (*pp) {*pp = '\0'; pp++;}
                 if (*ap == '%' && !ap[2])
                    {     if (ap[1] == 'I')
-
+                         {if (bbcp_Config.IDfn)
                                 {Argv[numa++] = (char *)"-i";
                                  Argv[numa] = bbcp_Config.IDfn;}
                                 else numa--;
-                            }
+                          }
                     else if (ap[1] == 'U') Argv[numa] = username;
                     else if (ap[1] == 'H') Argv[numa] = nodename;
                     else                   Argv[numa] = ap;
@@ -542,6 +551,7 @@ int bbcp_Node::SendFile(bbcp_FileSpec *fp)
 {
    const char *Act = "opening";
    int i, retc, tretc = 0, Mode = 0, ioSize = bbcp_BPool.DataSize();
+   bbcp_Buffer   *buffP;
    pid_t Child[2] = {0,0};
    bbcp_File *inFile_tmp, *inFile[BBCP_MAXSTREAMS+1];
    bbcp_ProcMon *TLimit = 0;
@@ -609,15 +619,6 @@ int bbcp_Node::SendFile(bbcp_FileSpec *fp)
        TLimit->Start(bbcp_Config.TimeLimit, &bbcp_BPool);
       }
 
-// set up numa affinity
-//
-    if (bbcp_Config.NumaSpec_SrcFile)
-       {
-       struct bitmask *numa_src_file_mask = numa_parse_nodestring(bbcp_Config.NumaSpec_SrcFile);
-       if (numa_src_file_mask == NULL)
-          bbcp_Emsg("NUMA", -E2BIG, "parse NumaSpec_SrcFile fail", bbcp_Config.NumaSpec_SrcFile);
-       numa_run_on_node_mask(numa_src_file_mask);
-       }
 
 //split the storage I/O task evenly to storage threads
   //open file
@@ -657,7 +658,7 @@ int bbcp_Node::SendFile(bbcp_FileSpec *fp)
           return bbcp_Emsg("SendFile",retc,"setting read offset for",fp->pathname);
        load = ((i == (stor_num-1)) ? (tasksize + fp->targetsz - offset) : (((task_num/4)+1) * ioSize));
        if (load < 0)
-       {bbcp_Emsg("Read", ESPIPE, "stat", iofn);
+       {bbcp_Emsg("Read", ESPIPE, "stat", inFile[i]->iofn);
         bbcp_BPool.Abort(); return 200;
        }
        else
@@ -686,10 +687,18 @@ int bbcp_Node::SendFile(bbcp_FileSpec *fp)
        delete cxp[i];
       }
    
-      if (tretc = (long)bbcp_Thread_Wait(inFile[i]->getTid)) retc = 128;
+      if (tretc = (long)bbcp_Thread_Wait(inFile[i]->getTid())) retc = 128;
         DEBUG("Thread " <<link_tid[i] <<"storage stream " <<i <<" ended; rc=" <<tretc);
+     
+      if (i == stor_num-1)
+      {if (!(buffP = bbcp_BPool.getEmptyBuff())) return 255;
+          buffP->blen = 0;
+          buffP->boff = (tretc ? -1 : inFile[i]->getOffset());
+       bbcp_BPool.putFullBuff(buffP);
+      }
       delete inFile[i];
    }
+   DEBUG("File read ended; rc=" <<retc);
 
 // Make sure each network link thread has terminated normally.
 //

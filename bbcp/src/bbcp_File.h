@@ -74,6 +74,7 @@ void         setLoad(long long load) {bytesLeft = load;}
 //         returns the total number of bytes transfered.
 //
 long long    Stats(double &iotime) {return IOB->ioStats(iotime);}
+long long    getOffset() {return nextoffset;}
 
 long long    Stats()               {return IOB->ioStats();}
 
@@ -87,6 +88,10 @@ long long    Stats()               {return IOB->ioStats();}
 int          bufreorders;
 int          maxreorders;
 
+bbcp_FileSystem *FSp;
+bbcp_IO         *IOB;
+char            *iofn;
+
 private:
 
 bbcp_Buffer     *nextbuff;
@@ -98,9 +103,6 @@ long long        PaceTime;
 bbcp_Timer       Ticker;
 int              rtCopy;
 int              curq;
-bbcp_IO         *IOB;
-bbcp_FileSystem *FSp;
-char            *iofn;
 pthread_t       tid;
 
 bbcp_Buffer *getBuffer(long long offset);
