@@ -557,8 +557,8 @@ int bbcp_Node::SendFile(bbcp_FileSpec *fp)
    bbcp_ProcMon *TLimit = 0;
    bbcp_ZCX *cxp[BBCP_MAXSTREAMS+1];
    pthread_t tid, link_tid[BBCP_MAXSTREAMS+1];
-   int stor_num = 4, task_num = 0;
-   long long offset = 0, tasksize, load;
+   int stor_num = 4;
+   long long offset = 0, task_num = 0, tasksize, load = 0;
 // Set open options (check for pipes)
 //
    if (bbcp_Config.Options & bbcp_XPIPE)
@@ -670,6 +670,7 @@ int bbcp_Node::SendFile(bbcp_FileSpec *fp)
             {bbcp_Emsg("SendFile",retc,"starting storage thread for",fp->pathname);
              _exit(100);
             }
+          cerr << "Storage I/O thread created, tid=" << tid << "  load="<<load<<"  offset=" <<offset <<endl << flush;
           inFile[i]->setTid(tid);
        if (i >= stor_num) {DEBUG("Thread " <<tid <<" assigned to storage data clocker");}
            else {DEBUG("Thread " <<tid <<" assigned to storage stream " <<i);}

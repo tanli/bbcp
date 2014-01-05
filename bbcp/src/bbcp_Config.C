@@ -152,8 +152,6 @@ bbcp_Config::bbcp_Config()
    rtLockf   = 0;
    ubSpec[0] = ' '; ubSpec[1] = ' '; ubSpec[2] = 0;
    upSpec[0] = ' '; upSpec[1] = ' '; upSpec[2] = 0;
-   cerr << "BBCP_config instance created" << endl << flush;
-
 }
 
 /******************************************************************************/
