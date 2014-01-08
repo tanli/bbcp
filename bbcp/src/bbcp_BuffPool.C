@@ -262,12 +262,33 @@ bbcp_Buffer *bbcp_BuffPool::getFullBuff()
          if (!RU486 && (buffp = next_full))
             if (!(next_full = buffp->next)) last_full = 0;
          FullPool.UnLock();
+ 
         }
 
 // Return the buffer
 //
    if (RU486) FullBuffs.Post();
    return buffp;
+}
+
+/******************************************************************************/
+/*                           p u t F u l l B u f f                            */
+/******************************************************************************/
+
+void bbcp_BuffPool::cleanFullBuff(int nstrm, char *iofn)
+{
+  bbcp_Buffer *buffp = 0;
+      // Get a full buffer
+
+  while(nstrm--)
+       {buffp = getFullBuff();      
+        if(buffp->blen == 0) 
+          putEmptyBuff(buffp);
+          // cerr << "Get a eof buff, address="<<buffp<<" counter="<< nstrm<< endl<< flush; 
+          
+        else 
+          {bbcp_Emsg("FullBuff list cleaning", -1, "useful data in full list", iofn);break;}
+       }
 }
  
 /******************************************************************************/

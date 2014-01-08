@@ -52,7 +52,8 @@ void *bbcp_doCX(void *pp)
      long retc = cxp->Process();
      return (void *)retc;
 }
-void *bbcp_doWrite(void *pp)
+
+void *bbcp_Buff2Stor(void *pp)
 {
 // set up numa affinity
 //
@@ -124,6 +125,7 @@ void *bbcp_Net2Buff(void *link)
      long retc = netlink->Net2Buff();
      return (void *)retc;
 }
+
 void *bbcp_Connect(void *protp)
 {
      bbcp_Protocol *protocol = (bbcp_Protocol *)protp;
@@ -344,12 +346,12 @@ int bbcp_Node::RecvFile(bbcp_FileSpec *fp, bbcp_Node *Remote)
 
    const char *Args = 0, *Act = "opening", *Path = fp->targpath;
    long tretc = 0;
-   int i, oflag, retc, Mode = wOnly, progtid = 0;
+   int i, oflag, retc, Mode = wOnly, progtid = 0, stor_num = 4, ec;
    long long startoff = 0;
    pid_t Child[2] = {0,0};
    bbcp_File *outFile, *seqFile = 0;
    bbcp_ZCX *cxp = 0;
-   pthread_t tid, link_tid[BBCP_MAXSTREAMS+4];
+   pthread_t tid, link_tid[BBCP_MAXSTREAMS+BBCP_MAXSTREAMS];
    bbcp_Timer Elapsed_Timer;
    bbcp_ProgMon *pmp = 0;
    float CRatio;
@@ -455,14 +457,7 @@ int bbcp_Node::RecvFile(bbcp_FileSpec *fp, bbcp_Node *Remote)
 // If we are compressing start the sequence thread now
 //
    if (bbcp_Config.Options & bbcp_COMPRESS)
-      {seqFile = new bbcp_File(Path, 0, 0);
-       if ((retc = bbcp_Thread_Start(bbcp_doWrite, (void *)seqFile, &tid))<0)
-          {bbcp_Emsg("RecvFile",retc,"starting disk thread for",Path);
-           _exit(100);
-          }
-       link_tid[dlcount++] = tid;
-       DEBUG("Thread " <<tid <<" assigned to sequencer as stream " <<i);
-      }
+      
 
 // Start the parent process monitor. It is stopped at exit.
 //
@@ -475,12 +470,73 @@ int bbcp_Node::RecvFile(bbcp_FileSpec *fp, bbcp_Node *Remote)
        pmp->Start(outFile, cxp, bbcp_Config.Progint, fp->Info.size-startoff);
       }
 
+// If we have no IOB, then do a simple in-line passthru
+
+   if (bbcp_Config.Options & bbcp_COMPRESS )
+      {seqFile = new bbcp_File(Path, 0, 0);
+       if (!seqFile->IOB)  seqFile->Passthru(&bbcp_BPool, &bbcp_CPool, 0, bbcp_Config.Streams);
+       if (!outFile->IOB)  outFile->Passthru(&bbcp_APool, &bbcp_CPool, 0, 1);
+      }
+   else if(!outFile->IOB)  outFile->Passthru(&bbcp_BPool, &bbcp_CPool, 0, bbcp_Config.Streams);
+   else
+   {
 // Write the whole file
+
+   for(i=0;i<stor_num;i++)
+      {if (bbcp_Config.Options & bbcp_COMPRESS)
+          retc = bbcp_Thread_Start(bbcp_Buff2Stor,(void *)seqFile, &tid);
+       else
+          retc = bbcp_Thread_Start(bbcp_Buff2Stor,(void *)outFile, &tid);
+       if(retc < 0)
+         {bbcp_Emsg("RecvFile",retc,"starting storage thread for",fp->pathname);
+           _exit(100);
+         }
+       link_tid[dlcount++] = tid;
+//       cerr << "Writer launched!! tid=" << tid << endl << flush;
+       if (i >= stor_num) {DEBUG("Thread " <<tid <<" assigned to storage data clocker");}
+       else {DEBUG("Thread " <<tid <<" assigned to storage stream " <<i);}
+      }
+
+// Make sure each thread has terminated normally
 //
+   for (i = 0; i < dlcount; i++)
+       {if (tretc = (long)bbcp_Thread_Wait(link_tid[i])) retc = 128;
+        DEBUG("Thread " <<link_tid[i] <<" stream " <<i <<" ended; rc=" <<tretc);
+//        cerr<<"Thread"<<link_tid[i] <<" stream " <<i <<" ended; rc=" <<tretc<<endl << flush;
+       }
+
+       cerr << "All threads exited!" << endl << flush;
+
    if (bbcp_Config.Options & bbcp_COMPRESS)
-           retc = outFile->Write_All(bbcp_APool, 1);
-      else retc = outFile->Write_All(bbcp_BPool, bbcp_Config.Streams);
-   DEBUG("File write ended; rc=" <<retc);
+     bbcp_BPool.cleanFullBuff(bbcp_Config.Streams, seqFile->iofn);
+   else
+     bbcp_BPool.cleanFullBuff(bbcp_Config.Streams, outFile->iofn);
+
+
+   if (bbcp_Config.Options & bbcp_COMPRESS)
+      {if (bbcp_Config.csOpts & bbcp_csPrint && *bbcp_Config.csString)
+          cout <<"200 cks: " <<bbcp_Config.csString <<' ' << seqFile->iofn <<endl;
+
+       if (!retc && seqFile->IOB && (bbcp_Config.Options & bbcp_FSYNC)
+           && (retc = seqFile->FSp->Fsync((bbcp_Config.Options & bbcp_DSYNC ? seqFile->iofn:0), seqFile->IOB->FD())))
+           bbcp_Emsg("Write", -retc, "synchronizing", seqFile->iofn);
+
+       if (seqFile->IOB && (ec = seqFile->IOB->Close()))
+       if (!retc) {bbcp_Emsg("Write", -ec, "closing", seqFile->iofn); retc = ec;}
+       retc = outFile->Write_All(bbcp_APool, 1);
+       bbcp_APool.cleanFullBuff(1, outFile->iofn);
+      }
+
+       if (bbcp_Config.csOpts & bbcp_csPrint && *bbcp_Config.csString)
+          cout <<"200 cks: " <<bbcp_Config.csString <<' ' << outFile->iofn <<endl;
+
+       if (!retc && outFile->IOB && (bbcp_Config.Options & bbcp_FSYNC)
+        && (retc = outFile->FSp->Fsync((bbcp_Config.Options & bbcp_DSYNC ? outFile->iofn:0), outFile->IOB->FD())))
+          bbcp_Emsg("Write", -retc, "synchronizing", outFile->iofn);
+
+       if (outFile->IOB && (ec = outFile->IOB->Close()))
+       if (!retc) {bbcp_Emsg("Write", -ec, "closing", outFile->iofn); retc = ec;}
+ }
 
 // Wait for the expansion thread to end
 //
@@ -496,12 +552,6 @@ int bbcp_Node::RecvFile(bbcp_FileSpec *fp, bbcp_Node *Remote)
        delete pmp;
       }
 
-// Make sure each thread has terminated normally
-//
-   for (i = 0; i < dlcount; i++)
-       {if (tretc = (long)bbcp_Thread_Wait(link_tid[i])) retc = 128;
-        DEBUG("Thread " <<link_tid[i] <<" stream " <<i <<" ended; rc=" <<tretc);
-       }
 
 // Make sure that all of the bytes were transfered
 //
@@ -558,7 +608,7 @@ int bbcp_Node::SendFile(bbcp_FileSpec *fp)
    bbcp_ZCX *cxp[BBCP_MAXSTREAMS+1];
    pthread_t tid, link_tid[BBCP_MAXSTREAMS+1];
    int stor_num = 4;
-   long long offset = 0, task_num = 0, tasksize, load = 0;
+   long long offset = 0, task_num = 0, tasksize=0, load = 0;
 // Set open options (check for pipes)
 //
    if (bbcp_Config.Options & bbcp_XPIPE)
@@ -619,7 +669,6 @@ int bbcp_Node::SendFile(bbcp_FileSpec *fp)
        TLimit->Start(bbcp_Config.TimeLimit, &bbcp_BPool);
       }
 
-
 //split the storage I/O task evenly to storage threads
   //open file
      if (!(inFile_tmp = fp->FSys()->Open(fp->pathname,O_RDONLY,Mode,fp->fileargs)))
@@ -638,7 +687,6 @@ int bbcp_Node::SendFile(bbcp_FileSpec *fp)
    tasksize -= fp->targetsz;
    if((task_num = tasksize/ioSize) == 0) stor_num = 1;
    else stor_num = (stor_num > task_num ? task_num : stor_num);
-
   //using the buffer size and file size to compute the offset for each thread, and create them
    offset = fp->targetsz;
    for(i=0;i<stor_num;i++)
@@ -670,7 +718,7 @@ int bbcp_Node::SendFile(bbcp_FileSpec *fp)
             {bbcp_Emsg("SendFile",retc,"starting storage thread for",fp->pathname);
              _exit(100);
             }
-          cerr << "Storage I/O thread created, tid=" << tid << "  load="<<load<<"  offset=" <<offset <<endl << flush;
+//          cerr << "Storage I/O thread created, tid=" << tid << "  load="<<load<<"  offset=" <<offset <<endl << flush;
           inFile[i]->setTid(tid);
        if (i >= stor_num) {DEBUG("Thread " <<tid <<" assigned to storage data clocker");}
            else {DEBUG("Thread " <<tid <<" assigned to storage stream " <<i);}
@@ -684,12 +732,12 @@ int bbcp_Node::SendFile(bbcp_FileSpec *fp)
   {if (bbcp_Config.Options & bbcp_COMPRESS)
       {if (tretc = (long)bbcp_Thread_Wait(cxp[i]->TID)) retc = 128;
 
-       DEBUG("Thread " <<link_tid[i] <<"File compression ended " <<i <<" ended; rc=" <<tretc);
+       DEBUG("Thread " << cxp[i]->TID <<"File compression ended " <<i <<" ended; rc=" <<tretc);
        delete cxp[i];
       }
    
       if (tretc = (long)bbcp_Thread_Wait(inFile[i]->getTid())) retc = 128;
-        DEBUG("Thread " <<link_tid[i] <<"storage stream " <<i <<" ended; rc=" <<tretc);
+        DEBUG("Thread " << inFile[i]->getTid() <<"storage stream " <<i <<" ended; rc=" <<tretc);
      
       if (i == stor_num-1)
       {if (!(buffP = bbcp_BPool.getEmptyBuff())) return 255;
@@ -707,7 +755,6 @@ int bbcp_Node::SendFile(bbcp_FileSpec *fp)
        {if (tretc = (long)bbcp_Thread_Wait(link_tid[i])) retc = 128;
         DEBUG("Thread " <<link_tid[i] <<"network stream " <<i <<" ended; rc=" <<tretc);
        }
-
 // All done
 //
    if (TLimit) delete TLimit;

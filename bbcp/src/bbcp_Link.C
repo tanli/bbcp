@@ -82,7 +82,8 @@ int bbcp_Link::Buff2Net()
       // Compose the header and see if control operation required
       //
          if (outbuff->blen <= 0)
-            {if ((NotDone = Control_Out(outbuff)) < 0) {retc = 255; break;}}
+
+         {if ((NotDone = Control_Out(outbuff)) < 0) {retc = 255; break;}}
             else bbcp_BPool.Encode(outbuff, BBCP_IO);
 
       // Check if we should generate a checksum
@@ -210,6 +211,8 @@ int bbcp_Link::Net2Buff()
       bbcp_Emsg("Net2Buff", rlen, "reading data from", Lname);
       return -rlen;
       }
+//   cerr << "network thread is done; rc=0"<<endl<<flush;
+
    return 0;
 }
 
@@ -230,6 +233,7 @@ int bbcp_Link::Control_In(bbcp_Buffer *bp)
    if (hp->cmnd == (char)BBCP_CLOSE)
       {DEBUG("Close request received on link " <<LinkNum);
        bp->blen = 0;
+       bp->boff = 0;
        bbcp_BPool.putFullBuff(bp);
        return 0;
       }

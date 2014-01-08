@@ -43,12 +43,14 @@ void         putEmptyBuff(bbcp_Buffer *buff);
 bbcp_Buffer *getFullBuff();
 
 void         putFullBuff(bbcp_Buffer *buff);
+void         cleanFullBuff(int nstrm, char * iofn);
 
              bbcp_BuffPool(const char *id="net");
             ~bbcp_BuffPool();
 
 private:
 
+bbcp_Buffer *next_full;
 bbcp_Mutex EmptyPool;
 bbcp_Mutex FullPool;
 bbcp_Semaphore EmptyBuffs;
@@ -60,7 +62,6 @@ int         buffsz;
 int         RU486;
 const char *pname;
 
-bbcp_Buffer *next_full;
 bbcp_Buffer *last_full;
 bbcp_Buffer *last_empty;
 };

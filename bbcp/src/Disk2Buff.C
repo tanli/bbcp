@@ -1,89 +1,85 @@
 //File: bbcp_Node.C
 //
-void bbcp_Stor2Buff(void *inFile)
+void *bbcp_Buff2Stor(void *pp)
 {
 
-    bbcp_File *file = (bbcp_FileSpec *)inFile;
-    int retc;
+// set up numa affinity
+// //
+//
+    if (bbcp_Config.NumaSpec_SnkFile)
+       {
+       struct bitmask *numa_snk_file_mask = numa_parse_nodestring(bbcp_Config.NumaSpec_SnkFile);
+       if (numa_snk_file_mask == NULL)
+          bbcp_Emsg("NUMA", -E2BIG, "parse NumaSpec_SnkFile fail", bbcp_Config.NumaSpec_SnkFile);
+       numa_run_on_node_mask(numa_snk_file_mask);
+       }
 
-   if (bbcp_Config.Options & bbcp_COMPRESS) retc=file->Read_All(bbcp_APool,1);
-      else retc = file->Read_All(bbcp_BPool, bbcp_Config.Bfact);
-   DEBUG("File read ended; rc=" <<retc);
-
-    return (void *)retc;
+     bbcp_File *fp = (bbcp_File *)pp;
+     long retc = fp->Write_All(bbcp_BPool, bbcp_Config.Streams);
+     return (void *)retc;
 }
+
 
 
 //in function bbcp_Node::SendFile()
 //Start multiple threads for storage I/O
 
-pthread_t stor_tid[BBCP_MAXSTREAMS+1];
-ioSize=bbcp_BPool.DataSize();
-stor_num = 4; task_num;
-long long offset = 0;
+bbcp_File *outFile;
+bbcp_ZCX *cxp[BBCP_MAXSTREAMS];
+int stor_num = 4; 
 
 
-//split the storage I/O task evenly to storage threads
-  //open file
-   if (!(inFile = fp->FSys()->Open(fp->pathname,O_RDONLY,Mode,fp->fileargs)))
-      {bbcp_Emsg("SendFile", errno, Act, fp->pathname);
-       exit(2);
-      }
+// If we have no IOB, then do a simple in-line passthru
 
-  //get the file size
 
-   if((tasksize=inFile->FSp->getSize(inFile->IOB->FD())) < 0)
-      {bbcp_Emsg("SendFile", static_cast<int>(-tasksize), "stat", inFile->iofn);
-       bbcp_BPool.Abort(); return 200;
-      }
+ if (!outFile->IOB) outFile->Passthru(&bbcp_BPool, &bbcp_CPool, 0,  bbcp_Config.Streams);
+ else
 
-  //Close the file
-   delete inFile;
-  //using the buffer size and file size to compute the offset for each thread,save the result to the matrix
-   tasksize -= fp->targetsz;
-   if((task_num = tasksize/ioSize) == 0) single_thread_read();
-   else stor_num = (stor_num < task_num ? task_num : stor_num);
 
-   offset = fp->targetsz;
+
+if (bbcp_Config.Options & bbcp_COMPRESS)
+   seqFile = new bbcp_File(Path, 0, 0);
 
 for(i=0;i<stor_num;i++)
   {
-//Open file and get a bbcp_File object
+   if (bbcp_Config.Options & bbcp_COMPRESS)
+     retc = bbcp_Thread_Start(bbcp_Buff2Stor,(void *)seqFile, &tid)
+   else
+     retc = bbcp_Thread_Start(bbcp_Buff2Stor,(void *)outFile, &tid)
+   if(retc < 0)
+   {bbcp_Emsg("RecvFile",retc,"starting storage thread for",fp->pathname);
+           _exit(100);
+   }
+   link_tid[dlcount++] = tid;
+   if (i >= stor_num) {DEBUG("Thread " <<tid <<" assigned to storage data clocker");}
+   else {DEBUG("Thread " <<tid <<" assigned to storage stream " <<i);}
+  }
 
-   if (!(inFile = fp->FSys()->Open(fp->pathname,O_RDONLY,Mode,fp->fileargs)))
-      {bbcp_Emsg("SendFile", errno, Act, fp->pathname);
-       exit(2);
-      }
+   if (bbcp_Config.Options & bbcp_COMPRESS)
+   {if (bbcp_Config.csOpts & bbcp_csPrint && *bbcp_Config.csString)
+      cout <<"200 cks: " <<bbcp_Config.csString <<' ' << seqFile->iofn <<endl;
 
-// If compression is wanted, set up the compression objects
-   if (bbcp_Config.Options & bbcp_COMPRESS
-       && !(cxp = setup_CX(1, inFile->ioFD()))) return -ECANCELED;
+    if (!retc && seqFile->IOB && (bbcp_Config.Options & bbcp_FSYNC)
+    && (retc = seqFile->FSp->Fsync((bbcp_Config.Options & bbcp_DSYNC ? seqFile->iofn:0), seqFile->IOB->FD())))
+      bbcp_Emsg("Write", -rc, "synchronizing", seqFile->iofn);
 
-
-//set the working offset for current thread, special handling for the last thread
-
-  if (offset && ((retc = inFile->Seek(offset)) < 0))
-      return bbcp_Emsg("SendFile",retc,"setting read offset for",fp->pathname);
-
-  if(i == stor_num-1)
-      inFile->bytesLeft = tasksize + fp->targetsz - offset; 
-  else
-      inFile->bytesLeft =((task_num/4)+1) * ioSize; 
-
-
-//create thread and save the tid
-if ((retc = bbcp_Thread_Start(bbcp_Stor2Buff,
-                                (void *)inFile, &tid))<0)
-           {bbcp_Emsg("SendFile",retc,"starting storage thread for",fp->pathname);
-            _exit(100);
-           }
-            stor_tid[i] = tid;
-        if (i >= stor_num) {DEBUG("Thread " <<tid <<" assigned to storage data clocker");}
-           else {DEBUG("Thread " <<tid <<" assigned to storage stream " <<i);}
-    offset += inFile->bytesLeft;
+    if (seqFile->IOB && (ec = seqFile->IOB->Close()))
+      if (!retc) {bbcp_Emsg("Write", -ec, "closing", seqFile->iofn); retc = ec;}
+    retc = outFile->Write_All(bbcp_APool, 1);
    }
 
+    if (bbcp_Config.csOpts & bbcp_csPrint && *bbcp_Config.csString)
+      cout <<"200 cks: " <<bbcp_Config.csString <<' ' << outFile->iofn <<endl;
 
+    if (!retc && outFile->IOB && (bbcp_Config.Options & bbcp_FSYNC)
+    && (retc = outFile->FSp->Fsync((bbcp_Config.Options & bbcp_DSYNC ? outFile->iofn:0), outFile->IOB->FD())))
+      bbcp_Emsg("Write", -retc, "synchronizing", outFile->iofn);
+
+    if (outFile->IOB && (ec = outFile->IOB->Close()))
+    if (!retc) {bbcp_Emsg("Write", -ec, "closing", outFile->iofn); retc = ec;}
+
+
+ 
 //make sure each thread has terminated normally
 
 

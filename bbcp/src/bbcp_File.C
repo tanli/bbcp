@@ -150,6 +150,7 @@ bbcp_Buffer *bbcp_File::getBuffer(long long offset)
    return bp;
 }
 
+
 /******************************************************************************/
 /* Public:                   P a s s t h r o u g h                            */
 /******************************************************************************/
@@ -346,7 +347,7 @@ int bbcp_File::Read_All(bbcp_BuffPool &inPool, int Vn)
               } else {DEBUG(csP->csObj->Type() <<": " <<csTxt <<' ' <<iofn);}
           }
        delete csP;
-      } else inPool.putFullBuff(bP);
+      } 
 
 // All done
 //
@@ -642,11 +643,11 @@ int bbcp_File::Write_All(bbcp_BuffPool &inPool, int nstrms)
     bbcp_FileChkSum *csP = 0;
     bbcp_BuffPool   *iBP;
     pthread_t tid;
-    int ec, rc, csType;
+    int rc, csType;
 
 // If we have no IOB, then do a simple in-line passthru
 //
-   if (!IOB) return Passthru(&inPool, &bbcp_CPool, 0, nstrms);
+//   if (!IOB) return Passthru(&inPool, &bbcp_CPool, 0, nstrms);
 
 // Establish checksum options as well as ordering options. Note that we do
 // not support checksums in unordered streams and should have been prohibited.
@@ -672,7 +673,7 @@ int bbcp_File::Write_All(bbcp_BuffPool &inPool, int nstrms)
 //
    rc = (blockSize ? Write_Direct(iBP, &inPool, nstrms)
                    : Write_Normal(iBP, &inPool, nstrms));
-
+//   cerr<<"Writer returned:" << pthread_self() << endl << flush;
 // Check if we ended because of an error or end of file
 //
    if (rc < 0 && rc != -ENOBUFS)
@@ -690,19 +691,19 @@ int bbcp_File::Write_All(bbcp_BuffPool &inPool, int nstrms)
 
 // If checksums are being printed, send off ours if we have it
 //
-   if (bbcp_Config.csOpts & bbcp_csPrint && *bbcp_Config.csString)
-      cout <<"200 cks: " <<bbcp_Config.csString <<' ' <<iofn <<endl;
+//   if (bbcp_Config.csOpts & bbcp_csPrint && *bbcp_Config.csString)
+//      cout <<"200 cks: " <<bbcp_Config.csString <<' ' <<iofn <<endl;
 
 // Check if we should fsync this file
 //
-   if (!rc && IOB && (bbcp_Config.Options & bbcp_FSYNC)
-   && (rc = FSp->Fsync((bbcp_Config.Options & bbcp_DSYNC ? iofn:0),IOB->FD())))
-      bbcp_Emsg("Write", -rc, "synchronizing", iofn);
+//   if (!rc && IOB && (bbcp_Config.Options & bbcp_FSYNC)
+//   && (rc = FSp->Fsync((bbcp_Config.Options & bbcp_DSYNC ? iofn:0),IOB->FD())))
+//      bbcp_Emsg("Write", -rc, "synchronizing", iofn);
 
 // Close the output file and make sure it's ok
 //
-   if (IOB && (ec = IOB->Close()))
-      if (!rc) {bbcp_Emsg("Write", -ec, "closing", iofn); rc = ec;}
+//   if (IOB && (ec = IOB->Close()))
+//      if (!rc) {bbcp_Emsg("Write", -ec, "closing", iofn); rc = ec;}
 
 // All done
 //
@@ -715,9 +716,11 @@ int bbcp_File::Write_All(bbcp_BuffPool &inPool, int nstrms)
 
 int bbcp_File::Write_Direct(bbcp_BuffPool *iBP, bbcp_BuffPool *oBP, int nstrms)
 {
-   bbcp_Buffer *bP;
+   bbcp_Buffer *bP, *EOF_buff[nstrms];
    ssize_t tlen, wlen = -1, sMask = blockSize - 1;
+   int i;
 
+   for (i=0; i<nstrms; i++) EOF_buff[i]=0;
 // Read all of the data until eof (note that we are single threaded)
 //
 // cerr <<"Write Direct! " <<blockSize <<endl;
@@ -729,7 +732,24 @@ int bbcp_File::Write_Direct(bbcp_BuffPool *iBP, bbcp_BuffPool *oBP, int nstrms)
 
       // Check if this is an eof marker
       //
-         if (!(bP->blen)) {iBP->putEmptyBuff(bP); nstrms--; continue;}
+
+         if (!(bP->blen))
+            { i = 0;
+              while(EOF_buff[i] && i < nstrms-1)
+                   {if(bP != EOF_buff[i]) {i++; continue;}
+                    else break;
+                   }
+              if(EOF_buff[i]) iBP->putFullBuff(bP);
+              else if(i >= nstrms-1)
+                     {bP->boff++; iBP->putFullBuff(bP); return 0;}
+                   else {EOF_buff[i] = bP;
+                      bP->boff++;
+                      iBP->putFullBuff(bP);
+//                      cerr << "Thread " << pthread_self() << " get a new control buff:" << bP << " offset="<<bP->boff<< endl << flush;
+                      }
+                   //             cerr<<"Writer: get an EOF buffer, ready to exit."<< endl << flush;
+                 continue;
+             }
 
       // Make sure we are writing a sector's worth of data
       //
@@ -752,7 +772,6 @@ int bbcp_File::Write_Direct(bbcp_BuffPool *iBP, bbcp_BuffPool *oBP, int nstrms)
 
 // All done
 //
-   if (!nstrms) return  0;
    if (!wlen)   return -1;
    return static_cast<int>(wlen);
 }
@@ -763,8 +782,12 @@ int bbcp_File::Write_Direct(bbcp_BuffPool *iBP, bbcp_BuffPool *oBP, int nstrms)
 
 int bbcp_File::Write_Normal(bbcp_BuffPool *iBP, bbcp_BuffPool *oBP, int nstrms)
 {
-   bbcp_Buffer *bP;
+   bbcp_Buffer *bP, *EOF_buff[nstrms];
    ssize_t wlen = -1;
+   int i;
+
+   for (i=0; i<nstrms; i++) EOF_buff[i]=0;
+   
 
 // Read all of the data until eof (note that we are single threaded)
 //
@@ -777,17 +800,32 @@ int bbcp_File::Write_Normal(bbcp_BuffPool *iBP, bbcp_BuffPool *oBP, int nstrms)
       // Check if this is an eof marker
       //
       // cerr <<nstrms <<" Write " <<bP->blen <<'@' <<bP->boff <<endl;
-         if (!(bP->blen)) {iBP->putEmptyBuff(bP); nstrms--; continue;}
+         if (!(bP->blen))
+            { i = 0;
+              while(EOF_buff[i] && i < nstrms-1)
+                   {if(bP != EOF_buff[i]) {i++; continue;}
+                    else break;
+                   } 
+              if(EOF_buff[i]) iBP->putFullBuff(bP);
+              else if(i >= nstrms-1) 
+                     {bP->boff++; iBP->putFullBuff(bP); return 0;}
+                   else {EOF_buff[i] = bP;
+                      bP->boff++;
+                      iBP->putFullBuff(bP);
+//                      cerr << "Thread " << pthread_self() << " get a new control buff:" << bP << " offset="<<bP->boff<< endl << flush;
+                      }
+                   //             cerr<<"Writer: get an EOF buffer, ready to exit."<< endl << flush;
+                continue;
+            }
 
       // Do a normal write
       //
          if ((wlen=IOB->Write(bP->data, bP->blen, bP->boff)) <= 0) break;
-         oBP->putEmptyBuff(bP);
+           oBP->putEmptyBuff(bP);
       }
 
 // All done
 //
-   if (!nstrms) return  0;
    if (!wlen)   return -1;
    return static_cast<int>(wlen);
 }
