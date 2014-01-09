@@ -718,10 +718,10 @@ int bbcp_Node::SendFile(bbcp_FileSpec *fp)
             {bbcp_Emsg("SendFile",retc,"starting storage thread for",fp->pathname);
              _exit(100);
             }
-          cerr << "Storage I/O thread created, tid=" << tid << "  load="<<load<<"  offset=" <<offset <<endl << flush;
+//          DEBUG("Reader thread created, tid=" << tid << "  load="<<load<<"  offset=");
           inFile[i]->setTid(tid);
        if (i >= stor_num) {DEBUG("Thread " <<tid <<" assigned to storage data clocker");}
-           else {DEBUG("Thread " <<tid <<" assigned to storage stream " <<i);}
+           else {DEBUG("Reader thread " <<i<<" created; tid="<< tid << "  load="<<load<<"  offset=");}
        offset += load;
      }
 
@@ -839,7 +839,7 @@ int bbcp_Node::Incomming(bbcp_Protocol *protocol)
       {i = dlcount-1;
        data_link[i]->setBuddy(data_link[0]);
        while(i--) data_link[i]->setBuddy(data_link[i+1]);
-       bbcp_Link::setNudge();
+      bbcp_Link::setNudge();
       }
 
 // Determine what the actual window size is (only if verbose)

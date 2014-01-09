@@ -1498,11 +1498,14 @@ void bbcp_Config::setStor(char *buff)
   start = buff; 
   end = strchr(start,c);
   str = strndup(start, end - start);
-  NReaders = strtol(str,NULL,10);
+  if((NReaders = strtol(str,NULL,10)) < 1 || NReaders > BBCP_MAXSTREAMS)
+    {bbcp_Fmsg("storspec", "Improper number of reader threads:", str); _exit(100);}
+ 
   start = end + 1;
   str = strdup(start);
-  NWriters = strtol(str,NULL,10);
-  cerr<<"bbcp_" <<bbcp_Debug.Who << " NReader=" <<NReaders<<" NWriters="<< NWriters <<endl << flush;
+  if((NWriters = strtol(str,NULL,10)) < 1 || NWriters > BBCP_MAXSTREAMS)
+    {bbcp_Fmsg("storspec", "Improper number of writer threads:", str); _exit(100);}
+   cerr<<"bbcp_" <<bbcp_Debug.Who << " NReader=" <<NReaders<<" NWriters="<< NWriters <<endl << flush;
 }
 
 /******************************************************************************/

@@ -1,0 +1,20 @@
+sink
+de.C:840
+set follow-fork-mode child
+bbcp_Stream.C:194 //fork
+r
+set follow-fork-mode parent
+c
+bbcp_Node.C:776 //before accept
+bbcp_Node.C:784 //after accept
+set follow-fork-mode child
+
+source
+set follow-fork-mode child
+bbcp_Stream.C:194 //fork
+c
+set follow-fork-mode parent
+c
+bbcp_Node.C:814 //before accept
+bbcp_Node.C:840 //after accept
+set follow-fork-mode child

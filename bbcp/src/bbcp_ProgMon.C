@@ -90,11 +90,11 @@ void bbcp_ProgMon::Monitor()
        if (bbcp_Config.Logfn) *tbuff = 0;
           else etime.Format(tbuff);
        if (bewordy)
-          sprintf(buff, "bbcp: %s %s done; %.1f %sB/s, "
+          sprintf(buff, "bbcp: %s %s done; %f %sB/s, "
                         "avg %.1f %sB/s%s\n",
                         tbuff,  pbuff, xfrtnow, xtXB, xfrtime, xaXB, cxip);
           else
-          sprintf(buff, "bbcp: %s %s done; %.1f %sB/s%s\n",
+          sprintf(buff, "bbcp: %s %s done; %f %sB/s%s\n",
                          tbuff,  pbuff, xfrtime, xtXB, cxip);
        cerr <<buff <<flush;
       }
