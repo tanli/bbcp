@@ -346,7 +346,7 @@ int bbcp_Node::RecvFile(bbcp_FileSpec *fp, bbcp_Node *Remote)
 
    const char *Args = 0, *Act = "opening", *Path = fp->targpath;
    long tretc = 0;
-   int i, oflag, retc, Mode = wOnly, progtid = 0, stor_num = 4, ec;
+   int i, oflag, retc, Mode = wOnly, progtid = 0, stor_num = bbcp_Config.NWriters, ec;
    long long startoff = 0;
    pid_t Child[2] = {0,0};
    bbcp_File *outFile, *seqFile = 0;
@@ -607,7 +607,7 @@ int bbcp_Node::SendFile(bbcp_FileSpec *fp)
    bbcp_ProcMon *TLimit = 0;
    bbcp_ZCX *cxp[BBCP_MAXSTREAMS+1];
    pthread_t tid, link_tid[BBCP_MAXSTREAMS+1];
-   int stor_num = 4;
+   int stor_num = bbcp_Config.NReaders;
    long long offset = 0, task_num = 0, tasksize=0, load = 0;
 // Set open options (check for pipes)
 //
@@ -704,7 +704,7 @@ int bbcp_Node::SendFile(bbcp_FileSpec *fp)
 //set the offset and workload for current thread, special handling for the last thread
        if (offset && ((retc = inFile[i]->Seek(offset)) < 0))
           return bbcp_Emsg("SendFile",retc,"setting read offset for",fp->pathname);
-       load = ((i == (stor_num-1)) ? (tasksize + fp->targetsz - offset) : (((task_num/4)+1) * ioSize));
+       load = ((i == (stor_num-1)) ? (tasksize + fp->targetsz - offset) : (((task_num/stor_num)+1) * ioSize));
        if (load < 0)
        {bbcp_Emsg("Read", ESPIPE, "stat", inFile[i]->iofn);
         bbcp_BPool.Abort(); return 200;
@@ -718,7 +718,7 @@ int bbcp_Node::SendFile(bbcp_FileSpec *fp)
             {bbcp_Emsg("SendFile",retc,"starting storage thread for",fp->pathname);
              _exit(100);
             }
-//          cerr << "Storage I/O thread created, tid=" << tid << "  load="<<load<<"  offset=" <<offset <<endl << flush;
+          cerr << "Storage I/O thread created, tid=" << tid << "  load="<<load<<"  offset=" <<offset <<endl << flush;
           inFile[i]->setTid(tid);
        if (i >= stor_num) {DEBUG("Thread " <<tid <<" assigned to storage data clocker");}
            else {DEBUG("Thread " <<tid <<" assigned to storage stream " <<i);}

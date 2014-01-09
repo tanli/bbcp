@@ -28,6 +28,8 @@ int           Mode;
 int           ModeD; //Directory creation mode
 int           ModeDC;
 int           Streams; //Number of concurrent streams
+int           NReaders;
+int           NWriters;
 int           BAdd;
 int           Bfact;
 int           BNum;//number of buffers = 3 * Streams
@@ -62,6 +64,7 @@ char         *LogSpec;
 char         *RepSpec;
 char         *SynSpec;
 char         *PorSpec;
+char         *StorSpec;
 char         *NumaSpec;
 char         *NumaSpec_SrcTCP;
 char         *NumaSpec_SrcFile;
@@ -124,6 +127,7 @@ void  Display();
 void  setCS(char *buff);
 void  setRWB(int rwbsz);
 void  setNUMA(char *buff);
+void  setStor(char *buff);
 int   a2sz(const char *etxt, char *item, int  &result, int  minv, int  maxv);
 int   a2tm(const char *etxt, char *item, int  &result, int  minv, int  maxv);
 int   a2ll(const char *etxt, char *item, long long &result,

@@ -111,6 +111,8 @@ bbcp_Config::bbcp_Config()
    Bfact     = 0;
    BNum      = 0;
    Streams   = 4;
+   NReaders  = 1;
+   NWriters  = 1;
    Xrate     = 0;
    Complvl   = 1;
    Progint   = 0;
@@ -202,7 +204,7 @@ bbcp_Config::~bbcp_Config()
 #define Cat_Oct(x) {            cbp=n2a(x,&cbp[0],"%o");}
 #define Add_Str(x) {cbp[0]=' '; strcpy(&cbp[1], x); cbp+=strlen(x)+1;}
 
-#define bbcp_VALIDOPTS (char *)"-a.B:b:C:c.d:DeE:fFhi:I:kKl:L:m:nN:oOpP:q:rR.s:S:t:T:u:U:vVw:W:x:X:y:zZ:"
+#define bbcp_VALIDOPTS (char *)"-a.B:b:C:c.d:DeE:fFG:hi:I:kKl:L:m:nN:oOpP:q:rR.s:S:t:T:u:U:vVw:W:x:X:y:zZ:"
 #define bbcp_SSOPTIONS bbcp_VALIDOPTS "MH:Y:"
 
 #define Hmsg1(a)   {bbcp_Fmsg("Config", a);    help(1);}
@@ -275,6 +277,10 @@ void bbcp_Config::Arguments(int argc, char **argv, int cfgfd)
        case 'f': Options |= bbcp_FORCE;
                  break;
        case 'F': Options |= bbcp_NOSPCHK;
+                 break;
+       case 'G': if(StorSpec) free(StorSpec);
+                 StorSpec = strdup(arglist.argval);
+                 setStor(StorSpec);
                  break;
        case 'h': help(0);
                  break;
@@ -599,7 +605,7 @@ void bbcp_Config::help(int rc)
 {
 H("Usage:   bbcp [Options] [Inspec] Outspec")
 I("Options: [-a [dir]] [-b [+]bf] [-B bsz] [-c [lvl]] [-C cfn] [-D] [-d path]")
-H("         [-e] [-E csa] [-f] [-F] [-h] [-i idfn] [-I slfn] [-k] [-K]")
+H("         [-e] [-E csa] [-f] [-F] [-G storspec] [-h] [-i idfn] [-I slfn] [-k] [-K]")
 H("         [-L opts[@logurl]] [-l logf] [-m mode] [-n] [-N nio] [-o] [-O] [-p]")
 H("         [-P sec] [-r] [-R [args]] [-q qos] [-s snum] [-S srcxeq] [-T trgxeq]")
 H("         [-t sec] [-v] [-V] [-u loc] [-U wsz] [-w [=]wsz] [-x rate] [-X numaspec] [-y] [-z]")
@@ -620,6 +626,8 @@ H("-E csa  specify checksum alorithm and optionally report or verify checksum.")
 H("        csa: [%]{a32|c32|md5}[=[<value> | <outfile>]]")
 H("-f      forces the copy by first unlinking the target file before copying.")
 H("-F      does not check to see if there is enough space on the target node.")
+H("-G spec set number of paralell file reading/writing threads.")
+H("        spec: reader:writer(default is 1:1).")
 H("-h      print help information.")
 H("-i idfn is the name of the ssh identify file for source and target.")
 H("-I slfn is the name of the file that holds the list of files to be copied.")
@@ -871,6 +879,7 @@ void bbcp_Config::Config_Ctl(int rwbsz)
    if (csOpts  & bbcp_csDashE)   Add_Opt('e');
    if (Options & bbcp_FORCE)     Add_Opt('f');
    if (Options & bbcp_NOSPCHK)   Add_Opt('F');
+   if (StorSpec)                 {Add_Opt('G'); Add_Str(StorSpec);}
    if (Options & bbcp_KEEP)      Add_Opt('k');
    if (Options & bbcp_NOUNLINK)  Add_Opt('K');
    if (LogSpec)                 {Add_Opt('L'); Add_Str(LogSpec);}
@@ -1370,10 +1379,12 @@ void bbcp_Config::setOpts(bbcp_Args &Args)
      Args.Option("config",     6, 'C', ':');
      Args.Option("dirbase",    3, 'd', ':');
      Args.Option("debug",      5, 'D', 0);
+    
 // e
      Args.Option("checksum",   5, 'E', ':');
      Args.Option("force",      1, 'f', 0);
      Args.Option("nofschk",    4, 'F', ':');
+     Args.Option("storspec",   1, 'G', ':');
      Args.Option("help",       1, 'h', ':');
      Args.Option("idfile",     1, 'i', ':');
      Args.Option("infiles",    2, 'I', ':');
@@ -1472,6 +1483,26 @@ void bbcp_Config::setRWB(int rwbsz)
 
    if (rwbsz && RWBsz != rwbsz && (Options & bbcp_BLAB))
       WAMsg("Config", "Buffer size changed", RWBsz);
+}
+
+
+/******************************************************************************/
+/*                                s e t S T O R                               */
+/******************************************************************************/
+
+void bbcp_Config::setStor(char *buff)
+{
+  int c=':';
+  char *start, *end, *str;
+  
+  start = buff; 
+  end = strchr(start,c);
+  str = strndup(start, end - start);
+  NReaders = strtol(str,NULL,10);
+  start = end + 1;
+  str = strdup(start);
+  NWriters = strtol(str,NULL,10);
+  cerr<<"bbcp_" <<bbcp_Debug.Who << " NReader=" <<NReaders<<" NWriters="<< NWriters <<endl << flush;
 }
 
 /******************************************************************************/
